@@ -10,6 +10,7 @@ from utils.auth import GoogleAuthenticator
 from utils.gmail_handler import GmailHandler
 from utils.bigquery_uploader import BigQueryUploader
 from utils.logger_setup import setup_logger
+from utils.openai import PDFInvoiceExtractor
 import config
 
 
@@ -30,7 +31,7 @@ def main():
         logger.info("Initializing service handlers...")
         gmail_handler = GmailHandler(credentials)
         bigquery_uploader = BigQueryUploader(credentials)
-
+        extractor = PDFInvoiceExtractor(api_key=config.OPENAI)
         # Process emails
         logger.info(f"Fetching emails with query: '{config.EMAIL_QUERY}'...")
         email_data = gmail_handler.extract_email_content(
@@ -66,3 +67,30 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# Example usage:
+if __name__ == "__main__":
+    import config
+
+    # Initialize extractor with API key
+    extractor = PDFInvoiceExtractor(api_key=config.OPENAI)
+
+    # Process a PDF file with merged pages
+    pdf_path = (
+        r"C:\Users\NJV\source_code\invoice-collection\downloads\1C25MYY_00014317.pdf"
+    )
+    results = extractor.process_pdf(pdf_path, merge=True)
+
+    # Convert results to DataFrame
+    df = extractor.to_dataframe(results)
+
+    # Display results
+    print("Extracted data:")
+    print(results)
+
+    print("\nDataFrame:")
+    print(df)
+
+    # Clean up temporary files
+    extractor.cleanup()
