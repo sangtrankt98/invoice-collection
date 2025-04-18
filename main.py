@@ -4,40 +4,13 @@ Invoice Collection Main Script
 Automates the process of collecting invoice data from emails and uploading to BigQuery
 """
 import os
-import logging
+import sys
 from datetime import datetime
 from utils.auth import GoogleAuthenticator
 from utils.gmail_handler import GmailHandler
 from utils.bigquery_uploader import BigQueryUploader
+from utils.logger_setup import setup_logger
 import config
-
-
-# Set up logging
-def setup_logger():
-    """Configure the logger"""
-    logger = logging.getLogger("invoice_collection")
-    logger.setLevel(logging.INFO)
-
-    # Create console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-
-    # Create file handler
-    file_handler = logging.FileHandler("invoice_collection.log")
-    file_handler.setLevel(logging.INFO)
-
-    # Create formatter and add it to the handlers
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    console_handler.setFormatter(formatter)
-    file_handler.setFormatter(formatter)
-
-    # Add handlers to logger
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
-    return logger
 
 
 def main():
@@ -45,37 +18,50 @@ def main():
     # Set up logger
     logger = setup_logger()
 
-    # Authenticate with Google services
-    logger.info("Authenticating with Google services...")
-    authenticator = GoogleAuthenticator(config.SCOPES)
-    credentials = authenticator.get_credentials()
+    try:
+        logger.info("Starting invoice collection process")
 
-    # Initialize handlers
-    gmail_handler = GmailHandler(credentials)
-    bigquery_uploader = BigQueryUploader(credentials)
+        # Authenticate with Google services
+        logger.info("Authenticating with Google services...")
+        authenticator = GoogleAuthenticator(config.SCOPES)
+        credentials = authenticator.get_credentials()
 
-    # Process emails
-    logger.info("Fetching and processing emails...")
-    email_data = gmail_handler.extract_email_content(
-        query=config.EMAIL_QUERY, max_results=config.MAX_EMAILS
-    )
+        # Initialize handlers
+        logger.info("Initializing service handlers...")
+        gmail_handler = GmailHandler(credentials)
+        bigquery_uploader = BigQueryUploader(credentials)
 
-    if not email_data:
-        logger.warning("No email data to process.")
-        return
+        # Process emails
+        logger.info(f"Fetching emails with query: '{config.EMAIL_QUERY}'...")
+        email_data = gmail_handler.extract_email_content(
+            query=config.EMAIL_QUERY, max_results=config.MAX_EMAILS
+        )
 
-    logger.info(f"Processed {len(email_data)} emails.")
+        if not email_data:
+            logger.warning("No email data to process.")
+            return
 
-    # Upload to BigQuery
-    logger.info("Uploading to BigQuery...")
-    errors = bigquery_uploader.upload_data(
-        email_data, dataset_id=config.BQ_DATASET, table_id=config.BQ_TABLE
-    )
+        logger.info(f"Processed {len(email_data)} emails.")
 
-    if not errors:
-        logger.info("Process completed successfully.")
-    else:
-        logger.error(f"Process completed with errors: {errors}")
+        # Upload to BigQuery
+        logger.info(
+            f"Uploading data to BigQuery table {config.BQ_DATASET}.{config.BQ_TABLE}..."
+        )
+        errors = bigquery_uploader.upload_data(
+            email_data, dataset_id=config.BQ_DATASET, table_id=config.BQ_TABLE
+        )
+
+        if not errors:
+            logger.info("Process completed successfully.")
+        else:
+            logger.error(f"Process completed with errors: {errors}")
+
+    except KeyboardInterrupt:
+        logger.info("Process interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        logger.exception(f"An unexpected error occurred: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -4,9 +4,13 @@ Gmail handler module for fetching and processing emails
 
 import base64
 import re
+import logging
 from googleapiclient.errors import HttpError
 from utils.auth import GoogleAuthenticator
 from utils.attachment_processor import AttachmentProcessor
+
+# Set up logger
+logger = logging.getLogger("invoice_collection.gmail")
 
 
 class GmailHandler:
@@ -14,6 +18,7 @@ class GmailHandler:
 
     def __init__(self, credentials):
         """Initialize with Google credentials"""
+        logger.info("Initializing Gmail handler")
         self.service = GoogleAuthenticator.create_service("gmail", "v1", credentials)
         self.attachment_processor = AttachmentProcessor(self.service)
 
@@ -21,6 +26,9 @@ class GmailHandler:
         self, user_id="me", query="has:attachment", max_results=10
     ):
         """Fetch emails and extract content"""
+        logger.info(
+            f"Extracting emails with query: '{query}', max results: {max_results}"
+        )
         try:
             # Get messages that match the query
             results = (
@@ -32,30 +40,43 @@ class GmailHandler:
 
             messages = results.get("messages", [])
             if not messages:
-                print("No messages found.")
+                logger.warning("No messages found matching the query")
                 return []
 
+            logger.info(f"Found {len(messages)} messages matching the query")
             email_data = []
-            for message in messages:
-                msg = (
-                    self.service.users()
-                    .messages()
-                    .get(userId=user_id, id=message["id"])
-                    .execute()
-                )
+            for i, message in enumerate(messages):
+                logger.info(f"Processing message {i+1} of {len(messages)}")
+                try:
+                    msg = (
+                        self.service.users()
+                        .messages()
+                        .get(userId=user_id, id=message["id"])
+                        .execute()
+                    )
 
-                # Process email
-                email_info = self._process_email(user_id, message["id"], msg)
-                email_data.append(email_info)
+                    # Process email
+                    email_info = self._process_email(user_id, message["id"], msg)
+                    email_data.append(email_info)
+                    logger.debug(f"Successfully processed message ID: {message['id']}")
+                except Exception as e:
+                    logger.error(f"Error processing message ID {message['id']}: {e}")
 
+            logger.info(
+                f"Successfully processed {len(email_data)} out of {len(messages)} messages"
+            )
             return email_data
 
         except HttpError as error:
-            print(f"An error occurred: {error}")
+            logger.error(f"Gmail API error: {error}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error extracting emails: {e}")
             return []
 
     def _process_email(self, user_id, message_id, message):
         """Process a single email message"""
+        logger.debug(f"Processing email message: {message_id}")
         # Get email headers
         headers = message["payload"]["headers"]
         subject = next(
@@ -75,16 +96,23 @@ class GmailHandler:
             "No Date",
         )
 
+        logger.debug(f"Email from: {from_email}, subject: {subject}")
+
         # Get email body
         body = self._get_email_body(message)
-
-        # Find any Drive links in the email
-        drive_links = self._extract_drive_links(body)
 
         # Extract attachments
         attachments = self.attachment_processor.get_attachments(
             user_id, message_id, message
         )
+        for att in attachments:
+            local_path = self.attachment_processor.save_attachment_to_file(att)
+            if local_path:
+                # Process PDF with OCR or convert here
+                process_result = self.attachment_processor.process_pdf(att)
+                logger.info("Processed:", process_result)
+        if attachments:
+            logger.info(f"Found {len(attachments)} attachments in the email")
 
         # Create a summary of the email (simple version)
         summary = f"From: {from_email}\nSubject: {subject}\nDate: {date}\n\nBody Summary: {body[:200]}..."
@@ -96,7 +124,6 @@ class GmailHandler:
             "from": from_email,
             "body": body,
             "summary": summary,
-            "drive_links": drive_links,
             "attachments": attachments,
         }
 
@@ -126,9 +153,3 @@ class GmailHandler:
             )
 
         return body
-
-    @staticmethod
-    def _extract_drive_links(text):
-        """Extract Google Drive links from text"""
-        drive_pattern = r"https://drive\.google\.com/\S+"
-        return re.findall(drive_pattern, text)
