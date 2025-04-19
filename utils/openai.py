@@ -6,7 +6,7 @@ import os
 from PIL import Image
 
 
-class PDFInvoiceExtractor:
+class InvoiceExtractor:
     """
     A class to extract information from PDF invoices using OpenAI API.
     """
@@ -176,31 +176,3 @@ class PDFInvoiceExtractor:
                 data = self.extract_data_from_image(image_path)
                 results.append(data)
             return results
-
-    def to_dataframe(self, results):
-        """
-        Convert list of dictionaries to pandas DataFrame.
-
-        Args:
-            results (list or dict): List of dictionaries or single dictionary with extracted data
-
-        Returns:
-            pandas.DataFrame: DataFrame containing the extracted data
-        """
-        if isinstance(results, dict):
-            results = [results]
-
-        df = pd.DataFrame(results)
-        return df
-
-    def cleanup(self):
-        """
-        Clean up temporary image files.
-        """
-        for file in os.listdir(self.temp_folder):
-            file_path = os.path.join(self.temp_folder, file)
-            try:
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-            except Exception as e:
-                print(f"Error deleting {file_path}: {e}")

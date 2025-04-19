@@ -29,7 +29,7 @@ def main():
 
         # Initialize handlers
         logger.info("Initializing service handlers...")
-        gmail_handler = GmailHandler(credentials)
+        gmail_handler = GmailHandler(credentials, config.OPENAI)
         bigquery_uploader = BigQueryUploader(credentials)
         extractor = PDFInvoiceExtractor(api_key=config.OPENAI)
         # Process emails
@@ -37,7 +37,13 @@ def main():
         email_data = gmail_handler.extract_email_content(
             query=config.EMAIL_QUERY, max_results=config.MAX_EMAILS
         )
+        # results = extractor.process_pdf(pdf_path, merge=True)
 
+        # # Convert results to DataFrame
+        # df = extractor.to_dataframe(results)
+
+        # # Clean up temporary files
+        # extractor.cleanup()
         if not email_data:
             logger.warning("No email data to process.")
             return
@@ -67,30 +73,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# Example usage:
-if __name__ == "__main__":
-    import config
-
-    # Initialize extractor with API key
-    extractor = PDFInvoiceExtractor(api_key=config.OPENAI)
-
-    # Process a PDF file with merged pages
-    pdf_path = (
-        r"C:\Users\NJV\source_code\invoice-collection\downloads\1C25MYY_00014317.pdf"
-    )
-    results = extractor.process_pdf(pdf_path, merge=True)
-
-    # Convert results to DataFrame
-    df = extractor.to_dataframe(results)
-
-    # Display results
-    print("Extracted data:")
-    print(results)
-
-    print("\nDataFrame:")
-    print(df)
-
-    # Clean up temporary files
-    extractor.cleanup()

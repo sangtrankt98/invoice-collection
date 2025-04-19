@@ -6,6 +6,8 @@ import base64
 import logging
 import os
 import re
+from utils.openai import InvoiceExtractor
+
 
 # Set up logger
 logger = logging.getLogger("invoice_collection.attachments")
@@ -14,10 +16,11 @@ logger = logging.getLogger("invoice_collection.attachments")
 class AttachmentProcessor:
     """Handles the processing of email attachments"""
 
-    def __init__(self, gmail_service):
+    def __init__(self, gmail_service, api_key):
         """Initialize with Gmail service"""
         logger.info("Initializing attachment processor")
         self.gmail_service = gmail_service
+        self.invoice_extractor = InvoiceExtractor(api_key)
 
     def get_attachments(self, user_id, msg_id, message):
         """Get and process attachments from the message"""

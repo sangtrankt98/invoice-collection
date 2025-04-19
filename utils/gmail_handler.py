@@ -16,11 +16,11 @@ logger = logging.getLogger("invoice_collection.gmail")
 class GmailHandler:
     """Handles Gmail API operations"""
 
-    def __init__(self, credentials):
+    def __init__(self, credentials, api_key):
         """Initialize with Google credentials"""
         logger.info("Initializing Gmail handler")
         self.service = GoogleAuthenticator.create_service("gmail", "v1", credentials)
-        self.attachment_processor = AttachmentProcessor(self.service)
+        self.attachment_processor = AttachmentProcessor(self.service, api_key)
 
     def extract_email_content(
         self, user_id="me", query="has:attachment", max_results=10
