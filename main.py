@@ -10,7 +10,7 @@ from utils.auth import GoogleAuthenticator
 from utils.gmail_handler import GmailHandler
 from utils.bigquery_uploader import BigQueryUploader
 from utils.logger_setup import setup_logger
-from utils.openai import PDFInvoiceExtractor
+from utils.openai import InvoiceExtractor
 import config
 
 
@@ -31,19 +31,11 @@ def main():
         logger.info("Initializing service handlers...")
         gmail_handler = GmailHandler(credentials, config.OPENAI)
         bigquery_uploader = BigQueryUploader(credentials)
-        extractor = PDFInvoiceExtractor(api_key=config.OPENAI)
         # Process emails
         logger.info(f"Fetching emails with query: '{config.EMAIL_QUERY}'...")
         email_data = gmail_handler.extract_email_content(
             query=config.EMAIL_QUERY, max_results=config.MAX_EMAILS
         )
-        # results = extractor.process_pdf(pdf_path, merge=True)
-
-        # # Convert results to DataFrame
-        # df = extractor.to_dataframe(results)
-
-        # # Clean up temporary files
-        # extractor.cleanup()
         if not email_data:
             logger.warning("No email data to process.")
             return

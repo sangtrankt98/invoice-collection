@@ -130,16 +130,18 @@ class AttachmentProcessor:
                         logger.warning(f"Failed to decode email body part: {e}")
         return None
 
-    def process_pdf(self, attachment):
+    def process_pdf(self, attachment, pdf_path):
         """Process PDF attachment - placeholder for future implementation"""
         logger.info(f"Processing PDF: {attachment['filename']}")
-        # TODO: Implement PDF processing logic
-        # This could use PyPDF2, pdfplumber, or other PDF libraries
+        data = self.invoice_extractor.extract_data_from_pdf_text(pdf_path)
+        logger.info(f"Data extract from PDF is {data}")
         return {
-            "type": "pdf",
-            "filename": attachment["filename"],
-            "size": attachment["size"],
-            "content_summary": "PDF content summary placeholder",
+            "invoice_number": data["invoice_number"],
+            "date": data["date"],
+            "company_name": data["company_name"],
+            "company_tax_number": data["company_tax_number"],
+            "seller": data["seller"],
+            "total_amount": data["total_amount"],
         }
 
     def save_attachment_to_file(self, attachment, output_dir="downloads"):

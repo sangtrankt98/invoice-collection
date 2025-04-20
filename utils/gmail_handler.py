@@ -4,6 +4,7 @@ Gmail handler module for fetching and processing emails
 
 import base64
 import re
+import os
 import logging
 from googleapiclient.errors import HttpError
 from utils.auth import GoogleAuthenticator
@@ -109,8 +110,22 @@ class GmailHandler:
             local_path = self.attachment_processor.save_attachment_to_file(att)
             if local_path:
                 # Process PDF with OCR or convert here
-                process_result = self.attachment_processor.process_pdf(att)
-                logger.info("Processed:", process_result)
+                process_result = self.attachment_processor.process_pdf(att, local_path)
+                att["invoice_number"] = process_result["invoice_number"]
+                att["date"] = process_result["date"]
+                att["company_name"] = process_result["company_name"]
+                att["company_tax_number"] = process_result["company_tax_number"]
+                att["seller"] = process_result["seller"]
+                att["total_amount"] = process_result["total_amount"]
+                # Rename to support upload file to gdrive
+                new_filename = (
+                    f"{process_result['date']}_{process_result['invoice_number']}.pdf"
+                )
+                print(new_filename)
+                new_path = os.path.join(os.path.dirname(local_path), new_filename)
+                # Rename the file
+                os.rename(local_path, new_path)
+                logger.info("Processed")
         if attachments:
             logger.info(f"Found {len(attachments)} attachments in the email")
 

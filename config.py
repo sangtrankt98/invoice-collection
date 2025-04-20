@@ -25,7 +25,7 @@ SCOPES = [
 ]
 
 # Email settings
-EMAIL_QUERY = "from:duyloc91@gmail.com label:Email Test"
+EMAIL_QUERY = "from:sang.tranphuoc@ninjavan.co label:Email Test"
 MAX_EMAILS = 10
 
 # BigQuery settings
