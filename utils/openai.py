@@ -10,7 +10,10 @@ import logging
 import ast
 import json
 import re
+import warnings
 
+warnings.filterwarnings("ignore", category=UserWarning, module="pdfplumber")
+warnings.filterwarnings("ignore", category=UserWarning, module="pdfminer")
 # Set up logger
 logger = logging.getLogger("invoice_collection.invoice")
 

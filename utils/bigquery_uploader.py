@@ -144,3 +144,43 @@ class BigQueryUploader:
             except Exception as e:
                 logger.error(f"Error creating table {dataset_id}.{table_id}: {e}")
                 raise
+
+    def extract_data(self, email_data):
+        """Upload the email data to BigQuery"""
+        logger.info(f"Preparing data")
+        # Prepare data
+        rows_to_insert = []
+        for email in email_data:
+            try:
+                row = {
+                    "message_id": email["message_id"],
+                    "date": email["date"],
+                    "subject": email["subject"],
+                    "from_email": email["from"],
+                    "summary": email["summary"],
+                    "attachment_count": len(email["attachments"]),
+                    "attachment_details": [
+                        {
+                            "filename": att["filename"],
+                            "mime_type": att["mime_type"],
+                            "size": att["size"],
+                            "gdrive_link": att["gdrive_link"],
+                            "company_name": att["company_name"],
+                            "company_tax_number": att["company_tax_number"],
+                            "seller": att["seller"],
+                            "date": att["date"],
+                            "invoice_number": att["invoice_number"],
+                            "total_amount": att["total_amount"],
+                        }
+                        for att in email["attachments"]
+                    ],
+                    "processed_date": datetime.now().isoformat(),
+                }
+                rows_to_insert.append(row)
+                logger.debug(f"Prepared row for message ID: {email['message_id']}")
+            except Exception as e:
+                logger.error(
+                    f"Error preparing row for message ID {email['message_id']}: {e}"
+                )
+        logger.info(f"Done generating data")
+        return rows_to_insert

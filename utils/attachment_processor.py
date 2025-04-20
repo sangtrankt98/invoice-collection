@@ -7,7 +7,10 @@ import logging
 import os
 import re
 from utils.openai import InvoiceExtractor
+import warnings
 
+warnings.filterwarnings("ignore", category=UserWarning, module="pdfminer")
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
 # Set up logger
 logger = logging.getLogger("invoice_collection.attachments")
@@ -134,7 +137,7 @@ class AttachmentProcessor:
         """Process PDF attachment - placeholder for future implementation"""
         logger.info(f"Processing PDF: {attachment['filename']}")
         data = self.invoice_extractor.extract_data_from_pdf_text(pdf_path)
-        logger.info(f"Data extract from PDF is {data}")
+        # logger.info(f"Data extract from PDF is {data}")
         return {
             "invoice_number": data["invoice_number"],
             "date": data["date"],

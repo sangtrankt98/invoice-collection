@@ -121,7 +121,6 @@ class GmailHandler:
                 new_filename = (
                     f"{process_result['date']}_{process_result['invoice_number']}.pdf"
                 )
-                print(new_filename)
                 new_path = os.path.join(os.path.dirname(local_path), new_filename)
                 # Rename the file
                 os.rename(local_path, new_path)

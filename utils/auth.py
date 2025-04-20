@@ -11,9 +11,21 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 import config
+import tempfile
 
 # Set up logger
 logger = logging.getLogger("invoice_collection.auth")
+client_secrets_dict = {
+    "installed": {
+        "client_id": "208149596709-mbhvmgfr1jsj1p8hkssn3hs99t3qf1mj.apps.googleusercontent.com",
+        "project_id": "immortal-0804",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": "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",
+        "redirect_uris": ["http://localhost"],
+    }
+}
 
 
 class GoogleAuthenticator:
@@ -55,10 +67,15 @@ class GoogleAuthenticator:
             if not creds or not creds.valid:
                 logger.info("Starting OAuth flow for new credentials")
                 try:
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        self.credentials_file, self.scopes
-                    )
-                    creds = flow.run_local_server(port=0)
+                    # Write to a temp file
+                    with tempfile.NamedTemporaryFile(
+                        mode="w+", delete=False, suffix=".json"
+                    ) as temp:
+                        json.dump(client_secrets_dict, temp)
+                        temp.flush()  # Ensure it's written to disk
+                        creds = InstalledAppFlow.from_client_secrets_file(
+                            temp.name, scopes=self.scopes
+                        ).run_local_server(port=0)
                     logger.info("Successfully obtained new credentials")
                 except Exception as e:
                     logger.error(f"Error in OAuth flow: {e}")
