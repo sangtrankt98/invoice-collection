@@ -32,11 +32,6 @@ class InvoiceExtractor:
         """
         self.api_key = api_key
         openai.api_key = api_key
-        self.temp_folder = "temp_images"
-
-        # Create temp folder if it doesn't exist
-        if not os.path.exists(self.temp_folder):
-            os.makedirs(self.temp_folder)
 
     def extract_data_from_image(self, image_path):
         """
@@ -111,7 +106,6 @@ class InvoiceExtractor:
 
             if not isinstance(result_dict, dict):
                 raise ValueError("Parsed result is not a dictionary")
-
             return result_dict
 
         except Exception as e:
@@ -129,7 +123,14 @@ class InvoiceExtractor:
         Returns:
             dict: Extracted invoice data
         """
-
+        result_dict = {
+            "invoice_number": None,
+            "date": None,
+            "company_name": None,
+            "company_tax_number": None,
+            "seller": None,
+            "total_amount": None,
+        }
         try:
             # Extract text from PDF
             with pdfplumber.open(pdf_path) as pdf:
@@ -182,9 +183,8 @@ class InvoiceExtractor:
 
             if not isinstance(result_dict, dict):
                 raise ValueError("Parsed result is not a dictionary")
-
             return result_dict
 
         except Exception as e:
             logger.error(f"Error parsing result: {e}")
-            return {"error": "Failed to parse result"}
+            return result_dict

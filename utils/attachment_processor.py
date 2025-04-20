@@ -19,11 +19,12 @@ logger = logging.getLogger("invoice_collection.attachments")
 class AttachmentProcessor:
     """Handles the processing of email attachments"""
 
-    def __init__(self, gmail_service, api_key):
+    def __init__(self, gmail_service, api_key, drive_handler):
         """Initialize with Gmail service"""
         logger.info("Initializing attachment processor")
         self.gmail_service = gmail_service
         self.invoice_extractor = InvoiceExtractor(api_key)
+        self.drive_handler = drive_handler
 
     def get_attachments(self, user_id, msg_id, message):
         """Get and process attachments from the message"""
@@ -96,22 +97,27 @@ class AttachmentProcessor:
         # Check for Google Drive folder links in email body
         decoded_body = get_email_body_text([message["payload"]])
         if decoded_body:
-            drive_folder_links = re.findall(
-                r"https://drive\.google\.com/drive/folders/[a-zA-Z0-9_-]+",
-                decoded_body,
-            )
-            for link in drive_folder_links:
-                logger.info(f"Found Google Drive folder link: {link}")
-                attachments.append(
-                    {
-                        "filename": "Google Drive Folder",
-                        "data": None,
-                        "size": 0,
-                        "mime_type": "application/vnd.google-apps.folder",
-                        "gdrive_link": link,
-                    }
-                )
-
+            folder_ids = self.drive_handler.extract_drive_folder_ids(decoded_body)
+            for folder_id in folder_ids:
+                # print(folder_id)
+                files = self.drive_handler.list_files_in_folder(folder_id)
+                for f in files:
+                    file_id = f["id"]
+                    metadata = self.drive_handler.get_file_metadata(file_id)
+                    file_data = self.drive_handler.download_file(file_id)
+                    if metadata and file_data:
+                        attachments.append(
+                            {
+                                "filename": metadata.get("name"),
+                                "data": file_data,
+                                "size": int(metadata.get("size", 0)),
+                                "mime_type": metadata.get(
+                                    "mimeType", "application/octet-stream"
+                                ),
+                                "gdrive_link": f"https://drive.google.com/file/d/{file_id}",
+                            }
+                        )
+                logger.info(f"Found Google Drive folder link: {folder_id}")
         logger.debug(
             f"Total {len(attachments)} attachments (files + gdrive) in message ID: {msg_id}"
         )

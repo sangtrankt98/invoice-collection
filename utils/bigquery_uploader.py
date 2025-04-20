@@ -171,6 +171,7 @@ class BigQueryUploader:
                             "date": att["date"],
                             "invoice_number": att["invoice_number"],
                             "total_amount": att["total_amount"],
+                            "file_name": att["file_name"],
                         }
                         for att in email["attachments"]
                     ],

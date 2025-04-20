@@ -9,19 +9,21 @@ import logging
 from googleapiclient.errors import HttpError
 from utils.auth import GoogleAuthenticator
 from utils.attachment_processor import AttachmentProcessor
+from utils.logger_setup import setup_logger
 
-# Set up logger
-logger = logging.getLogger("invoice_collection.gmail")
+logger = setup_logger()
 
 
 class GmailHandler:
     """Handles Gmail API operations"""
 
-    def __init__(self, credentials, api_key):
+    def __init__(self, credentials, api_key, drive_handler):
         """Initialize with Google credentials"""
         logger.info("Initializing Gmail handler")
         self.service = GoogleAuthenticator.create_service("gmail", "v1", credentials)
-        self.attachment_processor = AttachmentProcessor(self.service, api_key)
+        self.attachment_processor = AttachmentProcessor(
+            self.service, api_key, drive_handler
+        )
 
     def extract_email_content(
         self, user_id="me", query="has:attachment", max_results=10
@@ -118,13 +120,19 @@ class GmailHandler:
                 att["seller"] = process_result["seller"]
                 att["total_amount"] = process_result["total_amount"]
                 # Rename to support upload file to gdrive
-                new_filename = (
-                    f"{process_result['date']}_{process_result['invoice_number']}.pdf"
-                )
-                new_path = os.path.join(os.path.dirname(local_path), new_filename)
-                # Rename the file
-                os.rename(local_path, new_path)
-                logger.info("Processed")
+                if process_result["invoice_number"]:
+                    new_filename = f"{process_result['date']}_{process_result['invoice_number']}.pdf"
+                    new_filename = new_filename.replace("/", "_")
+                    new_path = os.path.join(os.path.dirname(local_path), new_filename)
+                    att["file_name"] = new_filename
+                    # Only rename if the file doesn't already exist
+                    if not os.path.exists(new_path):
+                        os.replace(local_path, new_path)
+                    else:
+                        # Optionally log or print a note here
+                        logger.info(f"Skipped renaming: {new_path} already exists")
+                else:
+                    att["file_name"] = os.path.basename(local_path)
         if attachments:
             logger.info(f"Found {len(attachments)} attachments in the email")
 
