@@ -47,7 +47,7 @@ class InvoiceExtractor:
             image_data = base64.b64encode(f.read()).decode("utf-8")
 
         response = openai.chat.completions.create(
-            model="gpt-4-vision-preview",
+            model="gpt-4-turbo",
             messages=[
                 {
                     "role": "user",
@@ -83,7 +83,14 @@ class InvoiceExtractor:
 
         # Parse the response to get a dictionary
         result_str = response.choices[0].message.content
-
+        result_dict = {
+            "invoice_number": None,
+            "date": None,
+            "company_name": None,
+            "company_tax_number": None,
+            "seller": None,
+            "total_amount": None,
+        }
         try:
             # Step 1: Remove code fences
             result_str = result_str.strip().strip("`")
@@ -111,7 +118,7 @@ class InvoiceExtractor:
         except Exception as e:
             logger.error(f"Error parsing result: {e}")
             logger.error(f"Original result: {result_str}")
-            return {"error": "Failed to parse result"}
+            return result_dict
 
     def extract_data_from_pdf_text(self, pdf_path):
         """
@@ -140,7 +147,7 @@ class InvoiceExtractor:
                 raise ValueError("No text extracted from PDF")
 
             response = openai.chat.completions.create(
-                model="gpt-4-turbo",
+                model="gpt-4.1",
                 messages=[
                     {
                         "role": "user",
@@ -186,5 +193,74 @@ class InvoiceExtractor:
             return result_dict
 
         except Exception as e:
-            logger.error(f"Error parsing result: {e}")
+            logger.error(f"Error parsing pdf result: {e}")
+            return result_dict
+
+    def extract_data_from_text(self, text):
+        """
+        Extract invoice data from a PDF using pdfplumber + OpenAI API (text-based approach).
+
+        Args:
+            pdf_path (str): Path to the PDF file
+
+        Returns:
+            dict: Extracted invoice data
+        """
+        result_dict = {
+            "invoice_number": None,
+            "date": None,
+            "company_name": None,
+            "company_tax_number": None,
+            "seller": None,
+            "total_amount": None,
+        }
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4.1",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": f"""
+                        You are an expert in extracting structured data from scanned or text-based invoices. The invoice contains Vietnamese and English.
+                        Always return clean JSON only. Do not hallucinate.
+                        If you are unsure about a field, leave it as an empty string.
+                        Extract the following fields from the invoice: invoice_number, date, company_name, company_tax_number, seller, total_amount.
+                        - Return the output as a valid JSON object only, no markdown or code blocks.
+                        - Use double quotes (") for all keys and string values.
+                        - Format invoice_number as a string to preserve leading zeroes.
+                        - The date must be formatted as yyyy-mm-dd and usually >= 2024.
+                        - company_name should be the name of the buyer company (the one purchasing the product) — not the seller.
+                        - company_tax_number as a string to preserve leading zeroes.
+                        - seller is the name of the company (the one selling the product).
+                        - total_amount should be a number without any commas, currency symbols, or formatting.
+
+                    Here is the invoice text:
+                    {text}
+                    """,
+                    }
+                ],
+                max_tokens=500,
+            )
+
+            result_str = response.choices[0].message.content.strip()
+            # Clean and parse
+            result_str = result_str.strip("`")
+            result_str = re.sub(r"^```(?:json|python)?", "", result_str).strip()
+            result_str = re.sub(r"```$", "", result_str).strip()
+            if result_str.count("{") > result_str.count("}"):
+                result_str += "}"
+            if result_str.startswith("{'") or result_str.startswith("['"):
+                result_str = result_str.replace("'", '"')
+
+            try:
+                result_dict = json.loads(result_str)
+            except json.JSONDecodeError:
+                result_dict = ast.literal_eval(result_str)
+
+            if not isinstance(result_dict, dict):
+                raise ValueError("Parsed result is not a dictionary")
+            return result_dict
+
+        except Exception as e:
+            logger.error(f"Error parsing text result: {e}")
             return result_dict

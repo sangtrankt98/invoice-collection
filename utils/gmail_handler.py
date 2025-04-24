@@ -5,7 +5,6 @@ Gmail handler module for fetching and processing emails
 import base64
 import re
 import os
-import logging
 from googleapiclient.errors import HttpError
 from utils.auth import GoogleAuthenticator
 from utils.attachment_processor import AttachmentProcessor
@@ -108,31 +107,30 @@ class GmailHandler:
         attachments = self.attachment_processor.get_attachments(
             user_id, message_id, message
         )
+        processed_attachments = []
+        # for att in attachments[:]:
+        # # This makes a shallow copy of the list, so any changes to attachments during iteration won’t affect the loop.
         for att in attachments:
             local_path = self.attachment_processor.save_attachment_to_file(att)
             if local_path:
-                # Process PDF with OCR or convert here
-                process_result = self.attachment_processor.process_pdf(att, local_path)
-                att["invoice_number"] = process_result["invoice_number"]
-                att["date"] = process_result["date"]
-                att["company_name"] = process_result["company_name"]
-                att["company_tax_number"] = process_result["company_tax_number"]
-                att["seller"] = process_result["seller"]
-                att["total_amount"] = process_result["total_amount"]
-                # Rename to support upload file to gdrive
-                if process_result["invoice_number"]:
-                    new_filename = f"{process_result['date']}_{process_result['invoice_number']}.pdf"
-                    new_filename = new_filename.replace("/", "_")
-                    new_path = os.path.join(os.path.dirname(local_path), new_filename)
-                    att["file_name"] = new_filename
-                    # Only rename if the file doesn't already exist
-                    if not os.path.exists(new_path):
-                        os.replace(local_path, new_path)
-                    else:
-                        # Optionally log or print a note here
-                        logger.info(f"Skipped renaming: {new_path} already exists")
+                # Archive handling (ZIP or RAR)
+                if local_path.lower().endswith((".zip", ".rar", ".7z", ".tar", ".gz")):
+                    extracted_files = self.attachment_processor.extract_archive(
+                        local_path
+                    )
+                    for file_path in extracted_files:
+                        processed_att = self._process_attachment_by_type(
+                            att.copy(), file_path
+                        )
+                        processed_attachments.append(processed_att)
                 else:
-                    att["file_name"] = os.path.basename(local_path)
+                    # Direct file handling
+                    processed_att = self._process_attachment_by_type(att, local_path)
+                    processed_attachments.append(processed_att)
+
+        # Replace attachments list if needed
+        attachments = processed_attachments
+
         if attachments:
             logger.info(f"Found {len(attachments)} attachments in the email")
 
@@ -175,3 +173,116 @@ class GmailHandler:
             )
 
         return body
+
+    def _process_attachment_by_type(self, att, file_path):
+        """Process an attachment based on its file type"""
+        file_extension = os.path.splitext(file_path)[1].lower()
+        att["file_name"] = os.path.basename(file_path)
+
+        # Default values for DataFrame compatibility
+        default_values = {
+            "invoice_number": "",
+            "date": "",
+            "company_name": "",
+            "company_tax_number": "",
+            "seller": "",
+            "total_amount": "",
+            "file_type": (
+                file_extension[1:] if file_extension.startswith(".") else "unknown"
+            ),
+            "processed": False,
+            "skipped": False,
+            "error": "",
+        }
+
+        # File type handlers
+        try:
+            if file_extension == ".pdf":
+                return self._process_pdf_attachment(att, file_path)
+            elif file_extension in (".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp"):
+                return self._process_image_attachment(att, file_path)
+            elif file_extension == ".xml":
+                return self._process_xml_attachment(att, file_path)
+            else:
+                logger.info(f"Unsupported file type: {file_path}")
+                att.update(default_values)
+                att["skipped"] = True
+                return att
+        except Exception as e:
+            logger.error(f"Error processing file {file_path}: {str(e)}")
+            att.update(default_values)
+            att["error"] = str(e)
+            return att
+
+    def _process_pdf_attachment(self, att, file_path):
+        """Process PDF attachments"""
+        process_result = self.attachment_processor.process_pdf(att, file_path)
+        return self._handle_processed_document(att, process_result, file_path)
+
+    def _process_image_attachment(self, att, file_path):
+        """Process image attachments (may contain scanned invoices)"""
+        try:
+            # Call a method from attachment processor to handle images (may use OCR)
+            process_result = self.attachment_processor.process_image(att, file_path)
+            return self._handle_processed_document(att, process_result, file_path)
+        except Exception as e:
+            logger.error(f"Error processing image {file_path}: {str(e)}")
+            att["file_type"] = "image"
+            att["error"] = str(e)
+            att["processed"] = False
+            return att
+
+    def _process_xml_attachment(self, att, file_path):
+        """Process XML attachments (may contain structured invoice data)"""
+        try:
+            # Call a method from attachment processor to handle XML files
+            process_result = self.attachment_processor.process_xml(att, file_path)
+            return self._handle_processed_document(att, process_result, file_path)
+        except Exception as e:
+            logger.error(f"Error processing XML file {file_path}: {str(e)}")
+            att["file_type"] = "xml"
+            att["error"] = str(e)
+            att["processed"] = False
+            return att
+
+    def _handle_processed_document(self, att, process_result, file_path):
+        """Handle any processed document with invoice data"""
+        # Set default values to prevent KeyError
+        default_values = {
+            "invoice_number": "",
+            "date": "",
+            "company_name": "",
+            "company_tax_number": "",
+            "seller": "",
+            "total_amount": "",
+        }
+
+        # Update with values from process_result, using defaults for missing keys
+        for key, default_value in default_values.items():
+            att[key] = process_result.get(key, default_value)
+
+        # Set file type based on extension
+        file_extension = os.path.splitext(file_path)[1].lower()
+        att["file_type"] = file_extension[1:]  # Remove the dot
+        att["processed"] = True
+
+        # Rename file if invoice number is available
+        if process_result.get("invoice_number"):
+            new_filename = f"{process_result.get('date', 'unknown')}_{process_result['invoice_number']}{file_extension}"
+            new_filename = new_filename.replace("/", "_").replace(":", "_")
+            new_path = os.path.join(os.path.dirname(file_path), new_filename)
+            att["file_name"] = new_filename
+
+            # Rename file if new path doesn't exist
+            if not os.path.exists(new_path):
+                try:
+                    os.replace(file_path, new_path)
+                    logger.info(f"Renamed file to: {new_filename}")
+                except Exception as e:
+                    logger.error(f"Error renaming file: {str(e)}")
+            else:
+                logger.info(f"Skipped renaming: {new_path} already exists")
+        else:
+            att["file_name"] = os.path.basename(file_path)
+
+        return att

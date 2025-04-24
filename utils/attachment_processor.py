@@ -4,8 +4,13 @@ Module for processing email attachments
 
 import base64
 import logging
+import tempfile
+import zipfile
+import rarfile
+import tarfile
+import py7zr
 import os
-import re
+import shutil
 from utils.openai import InvoiceExtractor
 import warnings
 
@@ -139,6 +144,69 @@ class AttachmentProcessor:
                         logger.warning(f"Failed to decode email body part: {e}")
         return None
 
+    def save_attachment_to_file(self, attachment, output_dir="downloads"):
+        """Save attachment data to local file system"""
+        os.makedirs(output_dir, exist_ok=True)
+        filepath = os.path.join(output_dir, attachment["filename"])
+
+        try:
+            with open(filepath, "wb") as f:
+                f.write(attachment["data"])
+            logger.info(f"Saved attachment to: {filepath}")
+            return filepath
+        except Exception as e:
+            logger.error(f"Failed to save attachment {attachment['filename']}: {e}")
+            return None
+
+    def extract_archive(self, archive_path, output_dir="downloads"):
+        """Extracts archive file (.zip, .rar, .7z, .tar, .gz) and flattens all files into output_dir"""
+        extracted_files = []
+        temp_dir = tempfile.mkdtemp()
+
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+
+            if archive_path.endswith(".zip"):
+                with zipfile.ZipFile(archive_path, "r") as zip_ref:
+                    zip_ref.extractall(temp_dir)
+
+            elif archive_path.endswith(".rar"):
+                with rarfile.RarFile(archive_path, "r") as rar_ref:
+                    rar_ref.extractall(temp_dir)
+
+            elif archive_path.endswith(".7z"):
+                with py7zr.SevenZipFile(archive_path, mode="r") as z:
+                    z.extractall(path=temp_dir)
+
+            elif archive_path.endswith(".tar") or archive_path.endswith(".gz"):
+                with tarfile.open(archive_path, "r:*") as tar_ref:
+                    tar_ref.extractall(path=temp_dir)
+
+            else:
+                logger.warning(f"Unsupported archive type: {archive_path}")
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return []
+
+            # Flatten all files to output_dir
+            for root, _, files in os.walk(temp_dir):
+                for file in files:
+                    src = os.path.join(root, file)
+                    dst = os.path.join(output_dir, file)
+                    shutil.move(src, dst)
+                    extracted_files.append(dst)
+
+            logger.info(
+                f"Extracted {len(extracted_files)} files from {archive_path} to {output_dir}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error extracting archive {archive_path}: {e}")
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            return []
+
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        return extracted_files
+
     def process_pdf(self, attachment, pdf_path):
         """Process PDF attachment - placeholder for future implementation"""
         logger.info(f"Processing PDF: {attachment['filename']}")
@@ -153,16 +221,45 @@ class AttachmentProcessor:
             "total_amount": data["total_amount"],
         }
 
-    def save_attachment_to_file(self, attachment, output_dir="downloads"):
-        """Save attachment data to local file system"""
-        os.makedirs(output_dir, exist_ok=True)
-        filepath = os.path.join(output_dir, attachment["filename"])
+    def process_image(self, attachment, img_path):
+        """Process PDF attachment - placeholder for future implementation"""
+        logger.info(f"Processing PDF: {attachment['filename']}")
+        data = self.invoice_extractor.extract_data_from_image(img_path)
+        # logger.info(f"Data extract from PDF is {data}")
+        return {
+            "invoice_number": data["invoice_number"],
+            "date": data["date"],
+            "company_name": data["company_name"],
+            "company_tax_number": data["company_tax_number"],
+            "seller": data["seller"],
+            "total_amount": data["total_amount"],
+        }
 
-        try:
-            with open(filepath, "wb") as f:
-                f.write(attachment["data"])
-            logger.info(f"Saved attachment to: {filepath}")
-            return filepath
-        except Exception as e:
-            logger.error(f"Failed to save attachment {attachment['filename']}: {e}")
-            return None
+    def process_xml(self, attachment, xml_path):
+        """Process XML files to extract invoice information"""
+        logger.info(f"Processing XML: {attachment['filename']}")
+        # Parse XML file
+        import xml.etree.ElementTree as ET
+
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+
+        # Extract text representation from XML
+        def element_to_text(elem, level=0):
+            result = f"{' ' * level}{elem.tag}: {elem.text.strip() if elem.text and elem.text.strip() else ''}\n"
+            for child in elem:
+                result += element_to_text(child, level + 2)
+            return result
+
+        text = element_to_text(root)
+
+        # Use the same AI-based extraction as for PDFs
+        data = self.invoice_extractor.extract_data_from_text(text)
+        return {
+            "invoice_number": data["invoice_number"],
+            "date": data["date"],
+            "company_name": data["company_name"],
+            "company_tax_number": data["company_tax_number"],
+            "seller": data["seller"],
+            "total_amount": data["total_amount"],
+        }

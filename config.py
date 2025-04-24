@@ -25,8 +25,8 @@ SCOPES = [
 ]
 
 # Email settings
-EMAIL_QUERY = "from:sang.tranphuoc@ninjavan.co label:Email Test"
-MAX_EMAILS = 10
+EMAIL_QUERY = "from:duyloc91@gmail.com label:Email Test"
+MAX_EMAILS = 1000
 
 # BigQuery settings
 BQ_DATASET = "finance_project"
@@ -36,3 +36,4 @@ BQ_TABLE = "email_summaries"
 CREDENTIALS_FILE = "finance_app_oauth.json"
 TOKEN_FILE = "finance_app_token.pq"
 OPENAI = "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"
+DRIVE = "https://drive.google.com/drive/folders/10_TscWRXUYrTjgaE9LF-MxI53x3q60oh"
