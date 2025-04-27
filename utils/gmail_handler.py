@@ -181,14 +181,20 @@ class GmailHandler:
 
         # Default values for DataFrame compatibility
         default_values = {
-            "invoice_number": "",
-            "date": "",
-            "company_name": "",
-            "company_tax_number": "",
-            "seller": "",
-            "total_before_tax": "",
-            "total_tax": "",
-            "total_amount": "",
+            "document_type": None,
+            "document_number": None,
+            "date": None,
+            "entity_name": None,
+            "entity_tax_number": None,
+            "counterparty_name": None,
+            "counterparty_tax_number": None,
+            "payment_method": None,
+            "amount_before_tax": None,
+            "tax_rate": None,
+            "tax_amount": None,
+            "total_amount": None,
+            "direction": None,
+            "description": None,
             "file_type": (
                 file_extension[1:] if file_extension.startswith(".") else "unknown"
             ),
@@ -251,14 +257,21 @@ class GmailHandler:
         """Handle any processed document with invoice data"""
         # Set default values to prevent KeyError
         default_values = {
-            "invoice_number": "",
-            "date": "",
-            "company_name": "",
-            "company_tax_number": "",
-            "seller": "",
-            "total_before_tax": "",
-            "total_tax": "",
-            "total_amount": "",
+            "document_type": None,
+            "document_number": None,
+            "date": None,
+            "entity_name": None,
+            "entity_tax_number": None,
+            "counterparty_name": None,
+            "counterparty_tax_number": None,
+            "payment_method": None,
+            "amount_before_tax": None,
+            "tax_rate": None,
+            "tax_amount": None,
+            "total_amount": None,
+            "direction": None,
+            "description": None,
+            "processed": False,
             "skipped": False,
             "error": "",
         }
@@ -272,8 +285,8 @@ class GmailHandler:
         att["processed"] = True
 
         # Rename file if invoice number is available
-        if process_result.get("invoice_number"):
-            new_filename = f"{process_result.get('date', 'unknown')}_{process_result['invoice_number']}{file_extension}"
+        if process_result.get("document_number"):
+            new_filename = f"{process_result.get('date', 'unknown')}_{process_result['document_number']}{file_extension}"
             new_filename = new_filename.replace("/", "_").replace(":", "_")
             new_path = os.path.join(os.path.dirname(file_path), new_filename)
             att["file_name"] = new_filename

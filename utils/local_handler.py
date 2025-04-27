@@ -277,14 +277,14 @@ class LocalHandler:
             results["error"] = "Cannot access the target base directory"
             return results
 
-        # Group rows by company_name
-        grouped = email_data.groupby("company_name")
+        # Group rows by entity_name
+        grouped = email_data.groupby("entity_name")
 
         # Process each company
-        for company_name, group_df in grouped:
+        for entity_name, group_df in grouped:
             # Create company directory
-            company_dir = self.get_or_create_directory(company_name, target_base_dir)
-            results["company_folders"][company_name] = company_dir
+            company_dir = self.get_or_create_directory(entity_name, target_base_dir)
+            results["company_folders"][entity_name] = company_dir
 
             # Process each file for this company
             for _, row in group_df.iterrows():

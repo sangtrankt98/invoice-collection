@@ -1,1 +1,24 @@
 # invoice-collection
+Hướng dẫn sử dụng
+ 1. Install unrar
+    Download the UnRAR command-line tool from the RARLab website: https://www.rarlab.com/rar_add.htm
+    Extract the downloaded file to a location on your computer (e.g., C:\Program Files\UnRAR)
+    Add the UnRAR directory to your PATH:
+
+    Search for "Environment Variables" in Windows
+    Click "Edit the system environment variables"
+    Click the "Environment Variables" button
+    Under "System variables", find "Path" and click "Edit"
+    Click "New" and add the path to the UnRAR folder
+    Click "OK" on all dialogs
+ 2. Install pdf2image, truy cập: https://github.com/oschwartz10612/poppler-windows/releases/
+    Download the latest Poppler for Windows from here
+    Extract the ZIP file to a location on your computer (e.g., C:\Program Files\poppler)
+    Add the bin directory to your PATH:
+
+    Search for "Environment Variables" in Windows
+    Click "Edit the system environment variables"
+    Click the "Environment Variables" button
+    Under "System variables", find "Path" and click "Edit"
+    Click "New" and add the path to the Poppler bin folder (e.g., C:\Program Files\poppler\bin)
+    Click "OK" on all dialogs

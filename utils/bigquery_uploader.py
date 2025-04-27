@@ -3,6 +3,7 @@ Module for uploading data to BigQuery
 """
 
 import json
+import numpy as np
 import logging
 from datetime import datetime
 from google.cloud import bigquery
@@ -97,6 +98,19 @@ class BigQueryUploader:
             logger.info(f"Error uploading DataFrame to BigQuery: {str(e)}")
             raise
 
+    def clean_dataframe_for_bigquery(self, df):
+        # Columns that should be numeric
+        numeric_columns = ["total_before_tax", "total_tax", "total_amount"]
+
+        for col in numeric_columns:
+            if col in df.columns:
+                # Replace empty strings with NaN
+                df[col] = df[col].replace("", np.nan)
+                # Convert to float
+                df[col] = df[col].astype(float)
+
+        return df
+
     def extract_data(self, email_data):
         """Upload the email data to BigQuery"""
         logger.info(f"Preparing data")
@@ -119,14 +133,20 @@ class BigQueryUploader:
                             "processed": att["processed"],
                             "skipped": att["skipped"],
                             "error": att["error"],
-                            "company_name": att["company_name"],
-                            "company_tax_number": att["company_tax_number"],
-                            "seller": att["seller"],
-                            "invoice_date": att["date"],
-                            "invoice_number": att["invoice_number"],
-                            "total_before_tax": att["total_before_tax"],
-                            "total_tax": att["total_tax"],
+                            "document_type": att["document_type"],
+                            "document_number": att["document_number"],
+                            "date": att["date"],
+                            "entity_name": att["entity_name"],
+                            "entity_tax_number": att["entity_tax_number"],
+                            "counterparty_name": att["counterparty_name"],
+                            "counterparty_tax_number": att["counterparty_tax_number"],
+                            "payment_method": att["payment_method"],
+                            "amount_before_tax": att["amount_before_tax"],
+                            "tax_rate": att["tax_rate"],
+                            "tax_amount": att["tax_amount"],
                             "total_amount": att["total_amount"],
+                            "direction": att["direction"],
+                            "description": att["description"],
                         }
                         for att in email["attachments"]
                     ],

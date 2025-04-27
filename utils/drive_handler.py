@@ -229,17 +229,13 @@ class DriveHandler:
             return results
         # Initialize results
         results = {"successful_uploads": 0, "failed_uploads": 0, "company_folders": {}}
-        # Group rows by company_name
-        grouped = email_data.groupby("company_name")
-        print(grouped)
+        # Group rows by entity_name
+        grouped = email_data.groupby("entity_name")
         # Process each company
-        for company_name, group_df in grouped:
-            # logger.info(f"Processing files for {company_name}")
+        for entity_name, group_df in grouped:
             # Get or create folder
-            company_folder_id = self.get_or_create_folder(
-                company_name, master_folder_id
-            )
-            results["company_folders"][company_name] = company_folder_id
+            company_folder_id = self.get_or_create_folder(entity_name, master_folder_id)
+            results["company_folders"][entity_name] = company_folder_id
             for _, row in group_df.iterrows():
                 filename = row.get("file_name")
                 if not filename:
