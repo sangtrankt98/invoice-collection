@@ -1,7 +1,8 @@
 config.py
 finance_*.*
 temp_images/
-summarize/
+company_files/
+company_reports/
 *.csv
 
 # Byte-compiled / optimized / DLL files

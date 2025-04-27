@@ -237,7 +237,7 @@ class DriveHandler:
             company_folder_id = self.get_or_create_folder(entity_name, master_folder_id)
             results["company_folders"][entity_name] = company_folder_id
             for _, row in group_df.iterrows():
-                filename = row.get("file_name")
+                filename = row.get("file_naming")
                 if not filename:
                     continue
 
