@@ -5,14 +5,13 @@ Automates the process of collecting invoice data from emails and uploading to Bi
 """
 import sys
 import pandas as pd
-import time
 from datetime import datetime, timedelta
 from utils.auth import GoogleAuthenticator
 from utils.gmail_handler import GmailHandler
 from utils.drive_handler import DriveHandler
 from utils.local_handler import LocalHandler
-from utils.bigquery_uploader import BigQueryUploader
-from utils.invoice_excel_generator import InvoiceExcelGenerator
+from utils.bigquery_handler import BigQueryHandler
+from utils.output_handler import *
 from utils.logger_setup import setup_logger
 import config
 import argparse
@@ -38,17 +37,15 @@ def run_invoice_collection(drive_link):
         gmail_handler = GmailHandler(
             credentials, config.OPENAI, DriveHandler(credentials)
         )
-        bigquery_uploader = BigQueryUploader(credentials)
+        bigquery_handler = BigQueryHandler(credentials)
         drive_handler = DriveHandler(credentials)  # Drive handler
 
-        # from:sang.tranphuoc@ninjavan.co
-        # Get current time and subtract 1 hour / 30 mins
+        # Get current time and subtract 30 mins
         now = datetime.utcnow()
         delta = timedelta(minutes=30)
         time_threshold = now - delta
         # Convert to Unix timestamp
         unix_time = int(time_threshold.timestamp())
-        EMAIL_QUERY = f'label:"Email Test" after:{unix_time}'
         EMAIL_QUERY = f'label:"Email Test" newer_than:10d'
         logger.info(f"Fetching emails with query: '{EMAIL_QUERY}'...")
 
@@ -62,7 +59,7 @@ def run_invoice_collection(drive_link):
         logger.info(f"Successfully processed {len(email_data)} emails.")
 
         logger.info("Extracting data from emails...")
-        df = pd.DataFrame(bigquery_uploader.extract_data(email_data))
+        df = pd.DataFrame(bigquery_handler.extract_data(email_data))
 
         if df.empty:
             logger.warning("No data extracted from emails.")
@@ -78,31 +75,29 @@ def run_invoice_collection(drive_link):
             ],
             axis=1,
         )
-        print(final_df)
-        logger.info("Saving data to CSV file...")
 
-        def get_most_common_or_unverified(x):
-            if x.dropna().empty:
-                return "Unverified"
-            return x.value_counts().idxmax()
+        # Standardize entity names and determine transaction direction
+        logger.info("Standardizing entities and determining transaction direction...")
+        final_df = standardize_dataframe(final_df)
 
-        final_df["entity_name"] = final_df.groupby("entity_name")[
-            "entity_name"
-        ].transform(get_most_common_or_unverified)
-        # final_df["invoice_number"] = final_df["invoice_number"].astype(str)
+        # Format document numbers
         final_df["document_number"] = "'" + final_df["document_number"].astype(str)
-        final_df.to_csv("flattened_attachments.csv", index=False, encoding="utf-8-sig")
-        logger.info(f"CSV saved successfully with {len(final_df)} rows.")
+
+        # Save the processed data
+        # logger.info("Saving data to CSV file...")
+        # final_df.to_csv("flattened_attachments.csv", index=False, encoding="utf-8-sig")
+        # logger.info(f"CSV saved successfully with {len(final_df)} rows.")
 
         # Upload data to bigquery
-        final_df = bigquery_uploader.clean_dataframe_for_bigquery(final_df)
-        bigquery_uploader.upload_dataframe(
+        final_df = bigquery_handler.clean_dataframe_for_bigquery(final_df)
+        bigquery_handler.upload_dataframe(
             data=final_df,
             project_id="immortal-0804",
             dataset_id="finance_project",
             table_id="invoice_summarize",
-            if_exists="append",  # will overwrite table if it exists
+            if_exists="append",  # will append to table if it exists
         )
+
         # Upload PDF files to Google Drive
         logger.info(f"Organizing and uploading PDFs to Drive folder: {drive_link}")
         upload_results = drive_handler.organize_and_upload_pdfs(
@@ -121,9 +116,7 @@ def run_invoice_collection(drive_link):
             logger.warning("Some files failed to upload. Check the log for details.")
 
         # Initialize with a base directory
-        local_handler = LocalHandler(
-            r"C:\Users\NJV\source_code\invoice-collection\summarize"
-        )
+        local_handler = LocalHandler(r"C:\Users\NJV\source_code\invoice-collection")
 
         # Organize PDFs from email data
         result = local_handler.organize_and_copy_pdfs(
@@ -151,20 +144,22 @@ def main():
     """Main entry point with command line argument parsing"""
     # Set up argument parser
     parser = argparse.ArgumentParser(description="Invoice Collection Tool")
-    # parser.add_argument(
-    #     "--drive-link",
-    #     required=True,
-    #     help="Google Drive folder link where files will be organized",
-    # )
 
-    # args = parser.parse_args()
+    # Add optional drive-link argument
+    parser.add_argument(
+        "--drive-link",
+        help="Google Drive folder link where files will be organized",
+        default=config.DRIVE,
+    )
+
+    args = parser.parse_args()
 
     # Set up logging
     logger = setup_logger()
     logger.info("Application started")
 
     # Run the invoice collection process
-    success, message = run_invoice_collection(drive_link=config.DRIVE)
+    success, message = run_invoice_collection(drive_link=args.drive_link)
 
     if success:
         logger.info(message)
@@ -176,12 +171,6 @@ def main():
         return 1
 
 
-# Main execution part
+# Main execution
 if __name__ == "__main__":
     sys.exit(main())
-
-
-# Example usage
-if __name__ == "__main__":
-    logger = setup_logger()
-    logger.info("Starting Excel generation example")

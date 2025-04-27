@@ -5,7 +5,7 @@ Module for uploading data to BigQuery
 import json
 import numpy as np
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.cloud import bigquery
 from pandas import DataFrame
 
@@ -13,7 +13,7 @@ from pandas import DataFrame
 logger = logging.getLogger("invoice_collection.bigquery")
 
 
-class BigQueryUploader:
+class BigQueryHandler:
     """Handles BigQuery operations"""
 
     def __init__(self, credentials):
@@ -160,3 +160,70 @@ class BigQueryUploader:
                 )
         logger.info(f"Done generating data")
         return rows_to_insert
+
+    def query_transactions_by_date(
+        self,
+        start_date=None,
+        end_date=None,
+        entity_name=None,
+        project_id="immortal-0804",
+        dataset_id="finance_project",
+        table_id="invoice_summarize",
+    ):
+        """
+        Query transaction data from BigQuery by date range and optional entity name
+
+        Parameters:
+        -----------
+        start_date : str, optional
+            Start date in format 'YYYY-MM-DD'
+        end_date : str, optional
+            End date in format 'YYYY-MM-DD'
+        entity_name : str, optional
+            Filter by specific entity name
+        project_id : str
+            Google Cloud project ID
+        dataset_id : str
+            BigQuery dataset ID
+        table_id : str
+            BigQuery table ID
+
+        Returns:
+        --------
+        pandas.DataFrame
+            DataFrame containing the query results
+        """
+        try:
+            # Default to the past 30 days if no dates provided
+            if not start_date:
+                end_date_obj = datetime.now()
+                start_date_obj = end_date_obj - timedelta(days=30)
+                start_date = start_date_obj.strftime("%Y-%m-%d")
+                end_date = end_date_obj.strftime("%Y-%m-%d")
+            elif not end_date:
+                # If only start date is provided, set end date to today
+                end_date = datetime.now().strftime("%Y-%m-%d")
+
+            # Build the query
+            query = f"""
+            SELECT *
+            FROM `{project_id}.{dataset_id}.{table_id}`
+            WHERE date BETWEEN '{start_date}' AND '{end_date}'
+            AND document_type = 'INVOICE'
+            """
+
+            # Add entity filter if provided
+            if entity_name:
+                query += f" AND entity_name = '{entity_name}'"
+
+            logger.info(f"Executing query: {query}")
+
+            # Execute the query
+            df = self.client.query(query).to_dataframe()
+
+            logger.info(f"Query returned {len(df)} rows")
+            return df
+
+        except Exception as e:
+            logger.error(f"Error querying BigQuery: {str(e)}")
+            raise

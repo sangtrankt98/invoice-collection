@@ -22,3 +22,8 @@ Hướng dẫn sử dụng
     Under "System variables", find "Path" and click "Edit"
     Click "New" and add the path to the Poppler bin folder (e.g., C:\Program Files\poppler\bin)
     Click "OK" on all dialogs
+  3. Tạo reports
+      For Single Company Reports
+      bashpython main_report.py --entity "COMPANY_NAME" --template "BKMV 1.xlsx"
+      For Mass Generation (All Companies)
+      bashpython main_report.py --mass-generation --template "BKMV 1.xlsx"

@@ -288,7 +288,7 @@ class LocalHandler:
 
             # Process each file for this company
             for _, row in group_df.iterrows():
-                filename = row.get("file_name")
+                filename = row.get("file_naming")
                 if not filename:
                     continue
 

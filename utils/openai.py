@@ -53,12 +53,13 @@ class InvoiceExtractor:
 
     def normalize_vietnamese_text(self, text):
         """
-        Normalize Vietnamese text by removing diacritical marks and special characters.
-        Example: 'CÔNG TY TNHH SẢN XUẤT VÀ THƯƠNG MẠI DƯƠNG NAM'
-                -> 'CONG TY TNHH SAN XUAT VA THUONG MAI DUONG NAM'
+        Normalize company names by:
+        1. Removing Vietnamese diacritical marks
+        2. Standardizing case and spacing
+        3. Removing special characters
         """
-        if text is None:
-            return None
+        if not isinstance(text, str):
+            return text
 
         # Vietnamese character mappings
         vietnamese_map = {
@@ -131,7 +132,7 @@ class InvoiceExtractor:
             "ỵ": "y",
         }
 
-        # Convert to lowercase for mapping, then back to original case
+        # Step 1: Remove Vietnamese diacritical marks
         result = ""
         for char in text:
             lower_char = char.lower()
@@ -144,11 +145,11 @@ class InvoiceExtractor:
             else:
                 result += char
 
-        # Remove special characters and punctuation (keep alphanumeric and spaces)
+        # Step 2: Remove special characters and punctuation (keep alphanumeric and spaces)
         result = re.sub(r"[^\w\s]", "", result)
 
-        # Replace multiple spaces with a single space
-        result = re.sub(r"\s+", " ", result).strip()
+        # Step 3: Convert to uppercase and standardize spacing
+        result = " ".join(result.upper().split())
 
         return result
 
@@ -177,7 +178,7 @@ class InvoiceExtractor:
             image_data = image_data.split(",", 1)[1]
 
         response = openai.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4.1",
             response_format={"type": "json_object"},
             messages=[
                 {
@@ -192,17 +193,17 @@ class InvoiceExtractor:
                         EXTRACT data into this JSON schema:
                             {{
                             "document_type": "",      // Type from above
-                            "document_number": "",    // ID number (prefer 'Số'/'Number'/'No' over 'Ký Hiệu'/'Sign')
+                            "document_number": "",    // ID number (prefer 'Số'/'Number'/'No' over 'Ký Hiệu'/'Sign'/'Mã CQT'/Mã). It is invoice number when type = INVOICE NUMBER
                             "date": "",               // Format: yyyy-mm-dd
                             "entity_name": "",        // Main company/person
                             "entity_tax_number": "",  // Their tax ID
                             "counterparty_name": "",  // Other transaction party
                             "counterparty_tax_number": "", // Their tax ID
                             "payment_method": "",     // "bank_transfer", "cash", or "others"
-                            "amount_before_tax": 0,   // Number only
+                            "amount_before_tax": 0,   // Number integer only, not comma not dot
                             "tax_rate": 0,            // Number only (10 for 10%)
-                            "tax_amount": 0,          // Number only
-                            "total_amount": 0,        // Number only
+                            "tax_amount": 0,          // Number integer only, not comma not dot
+                            "total_amount": 0,        // Number integer only, not comma not dot
                             "description": ""         // Brief context (50-60 chars), for invoices only
                             }}
 
@@ -297,17 +298,17 @@ class InvoiceExtractor:
                 EXTRACT data into this JSON schema:
                     {{
                     "document_type": "",      // Type from above
-                    "document_number": "",    // ID number (prefer 'Số'/'Number'/'No' over 'Ký Hiệu'/'Sign')
+                    "document_number": "",    // ID number (prefer 'Số'/'Number'/'No' over 'Ký Hiệu'/'Sign'/'Mã CQT'/Mã). It is invoice number when type = INVOICE NUMBER
                     "date": "",               // Format: yyyy-mm-dd
                     "entity_name": "",        // Main company/person
                     "entity_tax_number": "",  // Their tax ID
                     "counterparty_name": "",  // Other transaction party
                     "counterparty_tax_number": "", // Their tax ID
                     "payment_method": "",     // "bank_transfer", "cash", or "others"
-                    "amount_before_tax": 0,   // Number only
+                    "amount_before_tax": 0,   // Number integer only, not comma not dot
                     "tax_rate": 0,            // Number only (10 for 10%)
-                    "tax_amount": 0,          // Number only
-                    "total_amount": 0,        // Number only
+                    "tax_amount": 0,          // Number integer only, not comma not dot
+                    "total_amount": 0,        // Number integer only, not comma not dot
                     "description": ""         // Brief context (50-60 chars), for invoices only
                     }}
 
@@ -386,17 +387,17 @@ class InvoiceExtractor:
                 EXTRACT data into this JSON schema:
                     {{
                     "document_type": "",      // Type from above
-                    "document_number": "",    // ID number (prefer 'Số'/'Number'/'No' over 'Ký Hiệu'/'Sign')
+                    "document_number": "",    // ID number (prefer 'Số'/'Number'/'No' over 'Ký Hiệu'/'Sign'/'Mã CQT'/Mã). It is invoice number when type = INVOICE NUMBER
                     "date": "",               // Format: yyyy-mm-dd
                     "entity_name": "",        // Main company/person
                     "entity_tax_number": "",  // Their tax ID
                     "counterparty_name": "",  // Other transaction party
                     "counterparty_tax_number": "", // Their tax ID
                     "payment_method": "",     // "bank_transfer", "cash", or "others"
-                    "amount_before_tax": 0,   // Number only
+                    "amount_before_tax": 0,   // Number integer only, not comma not dot
                     "tax_rate": 0,            // Number only (10 for 10%)
-                    "tax_amount": 0,          // Number only
-                    "total_amount": 0,        // Number only
+                    "tax_amount": 0,          // Number integer only, not comma not dot
+                    "total_amount": 0,        // Number integer only, not comma not dot
                     "description": ""         // Brief context (50-60 chars), for invoices only
                     }}
 
