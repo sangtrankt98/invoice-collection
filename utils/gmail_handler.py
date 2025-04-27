@@ -186,6 +186,8 @@ class GmailHandler:
             "company_name": "",
             "company_tax_number": "",
             "seller": "",
+            "total_before_tax": "",
+            "total_tax": "",
             "total_amount": "",
             "file_type": (
                 file_extension[1:] if file_extension.startswith(".") else "unknown"
@@ -254,9 +256,12 @@ class GmailHandler:
             "company_name": "",
             "company_tax_number": "",
             "seller": "",
+            "total_before_tax": "",
+            "total_tax": "",
             "total_amount": "",
+            "skipped": False,
+            "error": "",
         }
-
         # Update with values from process_result, using defaults for missing keys
         for key, default_value in default_values.items():
             att[key] = process_result.get(key, default_value)

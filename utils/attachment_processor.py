@@ -11,6 +11,7 @@ import tarfile
 import py7zr
 import os
 import shutil
+import uuid
 from utils.openai import InvoiceExtractor
 import warnings
 
@@ -158,14 +159,28 @@ class AttachmentProcessor:
             logger.error(f"Failed to save attachment {attachment['filename']}: {e}")
             return None
 
-    def extract_archive(self, archive_path, output_dir="downloads"):
-        """Extracts archive file (.zip, .rar, .7z, .tar, .gz) and flattens all files into output_dir"""
+    def extract_archive(
+        self, archive_path, output_dir="downloads", processed_archives=None
+    ):
+        """
+        Recursively extracts archive files (.zip, .rar, .7z, .tar, .gz) and flattens all files into output_dir
+        Will also extract nested archives within archives
+        """
+        if processed_archives is None:
+            processed_archives = set()
+
+        # Avoid processing the same archive twice (prevents infinite loops)
+        if archive_path in processed_archives:
+            return []
+
+        processed_archives.add(archive_path)
         extracted_files = []
         temp_dir = tempfile.mkdtemp()
 
         try:
             os.makedirs(output_dir, exist_ok=True)
 
+            # Extract the archive based on its extension
             if archive_path.endswith(".zip"):
                 with zipfile.ZipFile(archive_path, "r") as zip_ref:
                     zip_ref.extractall(temp_dir)
@@ -187,11 +202,40 @@ class AttachmentProcessor:
                 shutil.rmtree(temp_dir, ignore_errors=True)
                 return []
 
-            # Flatten all files to output_dir
-            for root, _, files in os.walk(temp_dir):
+            # Process all extracted items
+            for root, dirs, files in os.walk(temp_dir):
+                # First, check for nested archives and extract them
+                for file in files[
+                    :
+                ]:  # Create a copy of the list to modify during iteration
+                    file_path = os.path.join(root, file)
+                    # Check if file is an archive
+                    if any(
+                        file.endswith(ext)
+                        for ext in [".zip", ".rar", ".7z", ".tar", ".gz"]
+                    ):
+                        # Recursively extract this nested archive
+                        nested_files = self.extract_archive(
+                            file_path,
+                            output_dir=output_dir,
+                            processed_archives=processed_archives,
+                        )
+                        extracted_files.extend(nested_files)
+                        # Remove this file from the list as it's been processed as an archive
+                        files.remove(file)
+
+                # Now move the remaining non-archive files to the output directory
                 for file in files:
                     src = os.path.join(root, file)
                     dst = os.path.join(output_dir, file)
+
+                    # Handle filename collisions
+                    if os.path.exists(dst):
+                        base, ext = os.path.splitext(file)
+                        dst = os.path.join(
+                            output_dir, f"{base}_{uuid.uuid4().hex[:8]}{ext}"
+                        )
+
                     shutil.move(src, dst)
                     extracted_files.append(dst)
 
@@ -201,10 +245,9 @@ class AttachmentProcessor:
 
         except Exception as e:
             logger.error(f"Error extracting archive {archive_path}: {e}")
+        finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
-            return []
 
-        shutil.rmtree(temp_dir, ignore_errors=True)
         return extracted_files
 
     def process_pdf(self, attachment, pdf_path):

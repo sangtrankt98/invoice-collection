@@ -58,7 +58,7 @@ class InvoiceExtractor:
                             You are an expert in extracting structured data from scanned or text-based invoices. The invoice contains vietnamese and english.
                             Always return clean JSON only. Do not hallucinate.
                             If you are unsure about a field, leave it as an empty string.
-                            Extract the following fields from the invoice: invoice_number, date, company_name, company_tax_number, seller, total_amount.
+                            Extract the following fields from the invoice: invoice_number, date, company_name, company_tax_number, seller, total_before_tax, total_tax, total_amount.
                                 - Return the output as a valid JSON object only, no markdown or code blocks.
                                 - Use double quotes (") for all keys and string values.
                                 - Format invoice_number as a **string** to preserve leading zeroes.
@@ -67,6 +67,8 @@ class InvoiceExtractor:
                                 - company_tax_number as a **string** to preserve leading zeroes.
                                 - seller the name of company (the one sell product)
                                 - total_amount should be a **number without any commas, currency symbols, or formatting**.
+                                - total_tax the tax that need to pay, should be  **number without any commas, currency symbols, or formatting**
+                                - total_before_tax usually by total_amount - total_tax, should be  **number without any commas, currency symbols, or formatting**
                             """,
                         },
                         {
@@ -89,6 +91,8 @@ class InvoiceExtractor:
             "company_name": None,
             "company_tax_number": None,
             "seller": None,
+            "total_before_tax": None,
+            "total_tax": None,
             "total_amount": None,
         }
         try:
@@ -136,6 +140,8 @@ class InvoiceExtractor:
             "company_name": None,
             "company_tax_number": None,
             "seller": None,
+            "total_before_tax": None,
+            "total_tax": None,
             "total_amount": None,
         }
         try:
@@ -152,19 +158,20 @@ class InvoiceExtractor:
                     {
                         "role": "user",
                         "content": f"""
-                        You are an expert in extracting structured data from scanned or text-based invoices. The invoice contains Vietnamese and English.
+                        You are an expert in extracting structured data from scanned or text-based invoices. The invoice contains vietnamese and english.
                         Always return clean JSON only. Do not hallucinate.
                         If you are unsure about a field, leave it as an empty string.
-                        Extract the following fields from the invoice: invoice_number, date, company_name, company_tax_number, seller, total_amount.
-                        - Return the output as a valid JSON object only, no markdown or code blocks.
-                        - Use double quotes (") for all keys and string values.
-                        - Format invoice_number as a string to preserve leading zeroes.
-                        - The date must be formatted as yyyy-mm-dd and usually >= 2024.
-                        - company_name should be the name of the buyer company (the one purchasing the product) — not the seller.
-                        - company_tax_number as a string to preserve leading zeroes.
-                        - seller is the name of the company (the one selling the product).
-                        - total_amount should be a number without any commas, currency symbols, or formatting.
-
+                        Extract the following fields from the invoice: invoice_number, date, company_name, company_tax_number, seller, total_before_tax, total_tax, total_amount.
+                            - Return the output as a valid JSON object only, no markdown or code blocks.
+                            - Use double quotes (") for all keys and string values.
+                            - Format invoice_number as a **string** to preserve leading zeroes.
+                            - The date must be formatted as yyyy-mm-dd and usually >= 2024.
+                            - company_name should be the **name of the buyer company (the one purchasing the product)** — not the seller
+                            - company_tax_number as a **string** to preserve leading zeroes.
+                            - seller the name of company (the one sell product)
+                            - total_amount should be a **number without any commas, currency symbols, or formatting**.
+                            - total_tax the tax that need to pay, should be  **number without any commas, currency symbols, or formatting**
+                            - total_before_tax usually by total_amount - total_tax, should be  **number without any commas, currency symbols, or formatting**
                     Here is the invoice text:
                     {text}
                     """,
@@ -212,6 +219,8 @@ class InvoiceExtractor:
             "company_name": None,
             "company_tax_number": None,
             "seller": None,
+            "total_before_tax": None,
+            "total_tax": None,
             "total_amount": None,
         }
         try:
@@ -221,19 +230,20 @@ class InvoiceExtractor:
                     {
                         "role": "user",
                         "content": f"""
-                        You are an expert in extracting structured data from scanned or text-based invoices. The invoice contains Vietnamese and English.
+                        You are an expert in extracting structured data from scanned or text-based invoices. The invoice contains vietnamese and english.
                         Always return clean JSON only. Do not hallucinate.
                         If you are unsure about a field, leave it as an empty string.
-                        Extract the following fields from the invoice: invoice_number, date, company_name, company_tax_number, seller, total_amount.
-                        - Return the output as a valid JSON object only, no markdown or code blocks.
-                        - Use double quotes (") for all keys and string values.
-                        - Format invoice_number as a string to preserve leading zeroes.
-                        - The date must be formatted as yyyy-mm-dd and usually >= 2024.
-                        - company_name should be the name of the buyer company (the one purchasing the product) — not the seller.
-                        - company_tax_number as a string to preserve leading zeroes.
-                        - seller is the name of the company (the one selling the product).
-                        - total_amount should be a number without any commas, currency symbols, or formatting.
-
+                        Extract the following fields from the invoice: invoice_number, date, company_name, company_tax_number, seller, total_before_tax, total_tax, total_amount.
+                            - Return the output as a valid JSON object only, no markdown or code blocks.
+                            - Use double quotes (") for all keys and string values.
+                            - Format invoice_number as a **string** to preserve leading zeroes.
+                            - The date must be formatted as yyyy-mm-dd and usually >= 2024.
+                            - company_name should be the **name of the buyer company (the one purchasing the product)** — not the seller
+                            - company_tax_number as a **string** to preserve leading zeroes.
+                            - seller the name of company (the one sell product)
+                            - total_amount should be a **number without any commas, currency symbols, or formatting**.
+                            - total_tax the tax that need to pay, should be  **number without any commas, currency symbols, or formatting**
+                            - total_before_tax usually by total_amount - total_tax, should be  **number without any commas, currency symbols, or formatting**
                     Here is the invoice text:
                     {text}
                     """,
