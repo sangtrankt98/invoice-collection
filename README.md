@@ -24,6 +24,6 @@ Hướng dẫn sử dụng
     Click "OK" on all dialogs
   3. Tạo reports
       For Single Company Reports
-      bashpython main_report.py --entity "COMPANY_NAME" --template "BKMV 1.xlsx"
+      bashpython main_report.py --entity "COMPANY_NAME" 
       For Mass Generation (All Companies)
-      bashpython main_report.py --mass-generation --template "BKMV 1.xlsx"
+      bashpython main_report.py --mass-generation
