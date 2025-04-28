@@ -2,8 +2,6 @@
 Module for handling Google Drive operations
 """
 
-import logging
-
 # utils/drive_handler.py
 import os
 from googleapiclient.discovery import build

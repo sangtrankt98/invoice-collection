@@ -27,3 +27,18 @@ Hướng dẫn sử dụng
       bashpython main_report.py --entity "COMPANY_NAME" 
       For Mass Generation (All Companies)
       bashpython main_report.py --mass-generation
+
+    # Add optional drive-link argument
+    parser.add_argument(
+        "--drive-link",
+        help="Google Drive folder link where files will be organized",
+        default=config.DRIVE,
+    )
+
+    # Add time filter argument
+    parser.add_argument(
+        "--time",
+        help="Time filter for emails (e.g., '1d' for 1 day, '2h' for 2 hours, '30m' for 30 minutes)",
+        default="1d",
+        choices=["30m", "1h", "2h", "3h", "6h", "12h", "1d", "2d", "3d", "7d"],
+    )

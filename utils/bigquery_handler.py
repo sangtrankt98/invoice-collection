@@ -120,16 +120,18 @@ class BigQueryHandler:
             try:
                 row = {
                     "message_id": email["message_id"],
+                    "thread_id": email["thread_id"],
                     "email_date": email["date"],
+                    "internal_date": email["internal_date"],
                     "subject": email["subject"],
                     "from_email": email["from"],
-                    # "summary": email["summary"],
+                    "summary": email["summary"],
                     "attachment_count": len(email["attachments"]),
                     "attachment_details": [
                         {
                             "file_origin": att["filename"],
-                            "gdrive_link": att["gdrive_link"],
                             "file_naming": att["file_name"],
+                            "file_type": att["file_type"],
                             "processed": att["processed"],
                             "skipped": att["skipped"],
                             "error": att["error"],

@@ -37,3 +37,7 @@ CREDENTIALS_FILE = "finance_app_oauth.json"
 TOKEN_FILE = "finance_app_token.pq"
 OPENAI = "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"
 DRIVE = "https://drive.google.com/drive/folders/10_TscWRXUYrTjgaE9LF-MxI53x3q60oh"
+# Report generator settings
+REPORT_DAYS = 30  # Number of days of data to include
+REPORT_FOLDER = "company_reports"  # Output folder
+REPORT_TEMPLATE = "path/to/template.xlsx"  # Template file (optional)
