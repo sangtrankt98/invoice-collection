@@ -46,7 +46,7 @@ def run_invoice_collection(drive_link):
         time_threshold = now - delta
         # Convert to Unix timestamp
         unix_time = int(time_threshold.timestamp())
-        EMAIL_QUERY = f'label:"Email Test" newer_than:10d'
+        EMAIL_QUERY = f"newer_than:1d"
         logger.info(f"Fetching emails with query: '{EMAIL_QUERY}'...")
 
         email_data = gmail_handler.extract_email_content(

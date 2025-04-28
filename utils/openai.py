@@ -287,7 +287,7 @@ class InvoiceExtractor:
             raise ValueError("No text extracted from PDF")
 
         response = openai.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4.1",
             response_format={"type": "json_object"},
             messages=[
                 {
@@ -376,7 +376,7 @@ class InvoiceExtractor:
         """
         result_dict = default_dict.copy()
         response = openai.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4.1",
             response_format={"type": "json_object"},
             messages=[
                 {

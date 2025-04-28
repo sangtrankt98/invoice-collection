@@ -9,40 +9,11 @@ import os
 import argparse
 from datetime import datetime, timedelta
 import pandas as pd
-import logging
 from utils.auth import GoogleAuthenticator
 from utils.bigquery_handler import BigQueryHandler
 from utils.transaction_reports import TransactionReportGenerator
 import config
-
-
-# Set up logger
-def setup_logger():
-    """Setup application logger"""
-    logger = logging.getLogger("report_generator")
-    logger.setLevel(logging.INFO)
-
-    # Create console handler
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-
-    # Create formatter
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    ch.setFormatter(formatter)
-
-    # Add handler to logger if it doesn't already have one
-    if not logger.handlers:
-        logger.addHandler(ch)
-
-        # Create file handler
-        fh = logging.FileHandler("report_generation.log")
-        fh.setLevel(logging.INFO)
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
-
-    return logger
+from utils.logger_setup import setup_logger
 
 
 def generate_entity_report(

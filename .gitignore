@@ -1,4 +1,5 @@
 config.py
+test.py
 finance_*.*
 temp_images/
 company_files/

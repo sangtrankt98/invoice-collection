@@ -10,7 +10,7 @@ from collections import Counter
 
 def find_dominant_entity_by_message_id(df):
     """
-    For each message_id, determine the dominant entity based on tax number and frequency
+    For each message_id, determine the dominant entity based on both entity and counterparty columns
     Returns a dict mapping message_id to its dominant entity and tax number
     """
     dominant_entities = {}
@@ -35,160 +35,103 @@ def find_dominant_entity_by_message_id(df):
                 }
                 continue
 
-        # If tax number approach doesn't work, count entity occurrences
+        # NEW APPROACH: Analyze both entity_name and counterparty_name columns
         entity_counts = Counter(group["entity_name"].dropna())
+        counterparty_counts = Counter(group["counterparty_name"].dropna())
 
-        if not entity_counts:
+        # Combine the counts from both columns to find potential dominant entities
+        all_companies = set(entity_counts.keys()) | set(counterparty_counts.keys())
+        company_totals = {}
+
+        for company in all_companies:
+            # Count total appearances across both columns
+            total_appearances = entity_counts.get(company, 0) + counterparty_counts.get(
+                company, 0
+            )
+            company_totals[company] = total_appearances
+
+        # Get companies with the highest total appearances
+        if not company_totals:
             dominant_entities[message_id] = {"entity": None, "tax_number": None}
             continue
 
-        # Find the most common entities
-        most_common_entities = entity_counts.most_common()
+        max_appearances = max(company_totals.values())
+        top_companies = [
+            c for c, count in company_totals.items() if count == max_appearances
+        ]
 
-        # Check if there's a tie for the most common entity
-        if (
-            len(most_common_entities) > 1
-            and most_common_entities[0][1] == most_common_entities[1][1]
-        ):
-            # We have a tie! Try to resolve using multiple strategies
+        # If we have multiple top companies, use a weighted approach to decide
+        if len(top_companies) > 1:
+            # Calculate a score for each company:
+            # - Give more weight to appearing as an entity (seller) than counterparty (buyer)
+            # - Add financial volume as a tiebreaker
+            company_scores = {}
 
-            # Strategy 1: Prefer the entity that appears in the "from_email" or "subject"
-            from_email = (
-                group["from_email"].iloc[0] if not group["from_email"].empty else ""
-            )
-            subject = group["subject"].iloc[0] if not group["subject"].empty else ""
-            email_text = (from_email + " " + subject).upper()
+            for company in top_companies:
+                # Base score is total appearances
+                score = company_totals[company]
 
-            for entity_name, _ in most_common_entities:
-                normalized_entity = normalize_company_name(entity_name)
-                # Check if any part of the normalized entity name appears in the email text
-                entity_words = normalized_entity.split()
-                for word in entity_words:
-                    if (
-                        len(word) > 3 and word in email_text
-                    ):  # Only consider words longer than 3 chars
-                        dominant_entity = entity_name
-                        # Get tax number for this entity
-                        tax_number = (
-                            group[group["entity_name"] == dominant_entity][
-                                "entity_tax_number"
-                            ]
-                            .dropna()
-                            .iloc[0]
-                            if not group[group["entity_name"] == dominant_entity][
-                                "entity_tax_number"
-                            ]
-                            .dropna()
-                            .empty
-                            else None
-                        )
-                        dominant_entities[message_id] = {
-                            "entity": dominant_entity,
-                            "tax_number": tax_number,
-                        }
-                        break
+                # Add bonus for entity appearances (seller role)
+                entity_bonus = (
+                    entity_counts.get(company, 0) * 1.5
+                )  # 50% more weight for seller role
+                score += entity_bonus
 
-            # Strategy 2: If still tied, prefer the entity with the most financial transactions
-            if message_id not in dominant_entities:
-                # Calculate total financial activity (sum of total_amount) for each entity
-                entity_financials = {}
-                for entity_name, _ in most_common_entities:
-                    entity_rows = group[group["entity_name"] == entity_name]
-                    total_amount = entity_rows["total_amount"].sum()
-                    entity_financials[entity_name] = total_amount
-
-                # Find entity with highest financial activity
-                if entity_financials:
-                    dominant_entity = max(
-                        entity_financials.items(), key=lambda x: x[1]
-                    )[0]
-                    tax_number = (
-                        group[group["entity_name"] == dominant_entity][
-                            "entity_tax_number"
-                        ]
-                        .dropna()
-                        .iloc[0]
-                        if not group[group["entity_name"] == dominant_entity][
-                            "entity_tax_number"
-                        ]
-                        .dropna()
-                        .empty
-                        else None
-                    )
-                    dominant_entities[message_id] = {
-                        "entity": dominant_entity,
-                        "tax_number": tax_number,
-                    }
-                    continue
-
-            # Strategy 3: If still tied, use document counts
-            if message_id not in dominant_entities:
-                # Count document types for each entity
-                entity_doc_counts = {}
-                for entity_name, _ in most_common_entities:
-                    entity_rows = group[group["entity_name"] == entity_name]
-                    doc_count = len(entity_rows)
-                    entity_doc_counts[entity_name] = doc_count
-
-                if entity_doc_counts:
-                    dominant_entity = max(
-                        entity_doc_counts.items(), key=lambda x: x[1]
-                    )[0]
-                    tax_number = (
-                        group[group["entity_name"] == dominant_entity][
-                            "entity_tax_number"
-                        ]
-                        .dropna()
-                        .iloc[0]
-                        if not group[group["entity_name"] == dominant_entity][
-                            "entity_tax_number"
-                        ]
-                        .dropna()
-                        .empty
-                        else None
-                    )
-                    dominant_entities[message_id] = {
-                        "entity": dominant_entity,
-                        "tax_number": tax_number,
-                    }
-                    continue
-
-            # If we still don't have a resolution, just pick the first one
-            if message_id not in dominant_entities:
-                dominant_entity = most_common_entities[0][0]
-                tax_number = (
-                    group[group["entity_name"] == dominant_entity]["entity_tax_number"]
-                    .dropna()
-                    .iloc[0]
-                    if not group[group["entity_name"] == dominant_entity][
-                        "entity_tax_number"
-                    ]
-                    .dropna()
-                    .empty
-                    else None
+                # Add financial activity bonus
+                # Sum transactions where company is entity
+                entity_rows = group[group["entity_name"] == company]
+                entity_amount = (
+                    entity_rows["total_amount"].sum()
+                    if "total_amount" in group.columns
+                    else 0
                 )
-                dominant_entities[message_id] = {
-                    "entity": dominant_entity,
-                    "tax_number": tax_number,
-                }
+
+                # Sum transactions where company is counterparty
+                counterparty_rows = group[group["counterparty_name"] == company]
+                counterparty_amount = (
+                    counterparty_rows["total_amount"].sum()
+                    if "total_amount" in group.columns
+                    else 0
+                )
+
+                # Companies that sell more (higher entity_amount) get priority
+                financial_score = entity_amount - counterparty_amount
+                # Normalize financial score to have less impact than appearance counts
+                if financial_score != 0:
+                    financial_bonus = 0.5 * (
+                        financial_score / abs(financial_score)
+                    )  # +0.5 or -0.5 based on direction
+                    score += financial_bonus
+
+                company_scores[company] = score
+
+            # Get company with highest score
+            dominant_entity = max(company_scores.items(), key=lambda x: x[1])[0]
         else:
-            # No tie, use the most common entity
-            dominant_entity = most_common_entities[0][0]
+            # Just one top company
+            dominant_entity = top_companies[0]
+
+        # Get tax number for this entity
+        tax_rows = group[group["entity_name"] == dominant_entity][
+            "entity_tax_number"
+        ].dropna()
+        if not tax_rows.empty:
+            tax_number = tax_rows.iloc[0]
+        else:
+            # Check if tax number exists in counterparty rows
+            counterparty_tax_rows = group[
+                group["counterparty_name"] == dominant_entity
+            ]["counterparty_tax_number"].dropna()
             tax_number = (
-                group[group["entity_name"] == dominant_entity]["entity_tax_number"]
-                .dropna()
-                .iloc[0]
-                if not group[group["entity_name"] == dominant_entity][
-                    "entity_tax_number"
-                ]
-                .dropna()
-                .empty
+                counterparty_tax_rows.iloc[0]
+                if not counterparty_tax_rows.empty
                 else None
             )
-            dominant_entities[message_id] = {
-                "entity": dominant_entity,
-                "tax_number": tax_number,
-            }
+
+        dominant_entities[message_id] = {
+            "entity": dominant_entity,
+            "tax_number": tax_number,
+        }
 
     return dominant_entities
 
@@ -252,6 +195,7 @@ def standardize_dataframe(df):
     1. Identify dominant entities by message
     2. Set consistent entity names
     3. Determine transaction directions
+    4. Swap entity and counterparty when needed to maintain consistency
 
     Args:
         df: DataFrame containing invoice/transaction data
@@ -265,6 +209,10 @@ def standardize_dataframe(df):
     # Save original entity and counterparty for reference
     processed_df["entity_name_orig"] = processed_df["entity_name"]
     processed_df["counterparty_name_orig"] = processed_df["counterparty_name"]
+    processed_df["entity_tax_number_orig"] = processed_df["entity_tax_number"]
+    processed_df["counterparty_tax_number_orig"] = processed_df[
+        "counterparty_tax_number"
+    ]
 
     # Find the dominant entity for each message_id (includes tax number)
     dominant_entities = find_dominant_entity_by_message_id(processed_df)
@@ -277,8 +225,33 @@ def standardize_dataframe(df):
         lambda mid: dominant_entities.get(mid, {}).get("tax_number")
     )
 
-    # Update entity_name to be the dominant entity for that email
-    processed_df["entity_name"] = processed_df.apply(
+    # For each row, check if we need to swap entity and counterparty
+    processed_df["needs_swap"] = processed_df.apply(
+        lambda row: (
+            pd.notnull(row["message_dominant_entity"])
+            and pd.notnull(row["counterparty_name"])
+            and row["counterparty_name"] == row["message_dominant_entity"]
+        ),
+        axis=1,
+    )
+
+    # Perform the swap for rows that need it
+    for idx, row in processed_df[processed_df["needs_swap"]].iterrows():
+        # Swap entity and counterparty names
+        processed_df.at[idx, "entity_name"] = row["counterparty_name"]
+        processed_df.at[idx, "counterparty_name"] = row["entity_name_orig"]
+
+        # Swap tax numbers if present
+        if pd.notnull(row["entity_tax_number"]) or pd.notnull(
+            row["counterparty_tax_number"]
+        ):
+            processed_df.at[idx, "entity_tax_number"] = row["counterparty_tax_number"]
+            processed_df.at[idx, "counterparty_tax_number"] = row[
+                "entity_tax_number_orig"
+            ]
+
+    # For rows that don't need swapping, set entity_name to dominant entity
+    processed_df.loc[~processed_df["needs_swap"], "entity_name"] = processed_df.apply(
         lambda row: (
             row["message_dominant_entity"]
             if pd.notnull(row["message_dominant_entity"])
@@ -291,10 +264,26 @@ def standardize_dataframe(df):
     processed_df["direction"] = processed_df.apply(
         lambda row: determine_transaction_direction(
             {
-                "entity_name": row["entity_name_orig"],
-                "counterparty_name": row["counterparty_name"],
-                "entity_tax_number": row["entity_tax_number"],
-                "counterparty_tax_number": row["counterparty_tax_number"],
+                "entity_name": (
+                    row["entity_name_orig"]
+                    if not row["needs_swap"]
+                    else row["counterparty_name_orig"]
+                ),
+                "counterparty_name": (
+                    row["counterparty_name_orig"]
+                    if not row["needs_swap"]
+                    else row["entity_name_orig"]
+                ),
+                "entity_tax_number": (
+                    row["entity_tax_number_orig"]
+                    if not row["needs_swap"]
+                    else row["counterparty_tax_number_orig"]
+                ),
+                "counterparty_tax_number": (
+                    row["counterparty_tax_number_orig"]
+                    if not row["needs_swap"]
+                    else row["entity_tax_number_orig"]
+                ),
             },
             {
                 "entity": row["message_dominant_entity"],
@@ -304,12 +293,15 @@ def standardize_dataframe(df):
         axis=1,
     )
 
-    # Clean up the dataframe - remove ALL temporary columns
+    # Clean up the dataframe - remove temporary columns
     temp_columns = [
         "entity_name_orig",
         "counterparty_name_orig",
+        "entity_tax_number_orig",
+        "counterparty_tax_number_orig",
         "message_dominant_entity",
         "message_dominant_tax",
+        "needs_swap",
     ]
 
     # Only drop columns that actually exist
