@@ -208,7 +208,7 @@ class BigQueryHandler:
 
             # Build the query
             query = f"""
-            SELECT *
+            SELECT DISTINCT *
             FROM `{project_id}.{dataset_id}.{table_id}`
             WHERE date BETWEEN '{start_date}' AND '{end_date}'
             AND document_type = 'INVOICE'
