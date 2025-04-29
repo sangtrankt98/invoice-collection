@@ -168,7 +168,6 @@ def run_invoice_collection(
             ],
             axis=1,
         )
-        final_df.to_csv("test.csv")
         # Standardize entity names and determine transaction direction
         update_status("Standardizing entities and determining transaction direction...")
         final_df = standardize_dataframe(final_df)
@@ -184,7 +183,7 @@ def run_invoice_collection(
             project_id="immortal-0804",
             dataset_id="finance_project",
             table_id="invoice_summarize",
-            if_exists="fail",  # will append to table if it exists
+            if_exists="append",  # will append to table if it exists
         )
 
         # Upload PDF files to Google Drive
