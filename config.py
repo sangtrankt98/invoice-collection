@@ -25,8 +25,8 @@ SCOPES = [
 ]
 
 # Email settings
-EMAIL_QUERY = "from:duyloc91@gmail.com label:Email Test"
-MAX_EMAILS = 1000
+EMAIL_QUERY = ""
+MAX_EMAILS = 500
 
 # BigQuery settings
 BQ_DATASET = "finance_project"
@@ -40,4 +40,4 @@ DRIVE = "https://drive.google.com/drive/folders/10_TscWRXUYrTjgaE9LF-MxI53x3q60o
 # Report generator settings
 REPORT_DAYS = 30  # Number of days of data to include
 REPORT_FOLDER = "company_reports"  # Output folder
-REPORT_TEMPLATE = "path/to/template.xlsx"  # Template file (optional)
+SILICONFLOW = "sk-atwidjzowmgndbkzrrvneeihbndblxdzeqqxludtbibjirvw"

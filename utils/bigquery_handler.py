@@ -229,3 +229,47 @@ class BigQueryHandler:
         except Exception as e:
             logger.error(f"Error querying BigQuery: {str(e)}")
             raise
+
+    def query_threads_within_day(
+        self,
+        project_id="immortal-0804",
+        dataset_id="finance_project",
+        table_id="invoice_summarize",
+    ):
+        """
+        Query transaction data from BigQuery by date range and optional entity name
+
+        Parameters:
+        -----------
+        project_id : str
+            Google Cloud project ID
+        dataset_id : str
+            BigQuery dataset ID
+        table_id : str
+            BigQuery table ID
+
+        Returns:
+        --------
+        pandas.DataFrame
+            DataFrame containing the query results
+        """
+        try:
+            # Build the query
+            query = f"""
+            SELECT DISTINCT thread_id
+            FROM `{project_id}.{dataset_id}.{table_id}`
+            WHERE TRUE
+            AND date(internal_date) >= current_date('+07') - interval '7' day
+            """
+
+            logger.info(f"Executing query")
+
+            # Execute the query
+            df = self.client.query(query).to_dataframe()
+
+            logger.info(f"Query returned {len(df)} rows")
+            return df["thread_id"].tolist()
+
+        except Exception as e:
+            logger.error(f"Error querying BigQuery: {str(e)}")
+            raise

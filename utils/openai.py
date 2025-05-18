@@ -15,8 +15,9 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pdfplumber")
 warnings.filterwarnings("ignore", category=UserWarning, module="pdfminer")
-# Set up logger
-logger = logging.getLogger("invoice_collection.invoice")
+from utils.logger_setup import setup_logger
+
+logger = setup_logger()
 
 default_dict = {
     "document_type": None,

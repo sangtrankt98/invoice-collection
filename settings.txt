@@ -1,2 +1,0 @@
-DRIVE_LINK=https://drive.google.com/drive/folders/10_TscWRXUYrTjgaE9LF-MxI53x3q60oh
-TIME_FILTER=30m

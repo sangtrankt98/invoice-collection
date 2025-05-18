@@ -16,8 +16,9 @@ import uuid
 import requests
 from datetime import datetime
 from urllib.parse import urlparse
-from utils.openai import InvoiceExtractor
+from utils.llama import InvoiceExtractor
 import warnings
+import torch
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pdfminer")
 logging.getLogger("pdfminer").setLevel(logging.ERROR)
@@ -34,7 +35,14 @@ class AttachmentProcessor:
         """Initialize with Gmail service"""
         logger.info("Initializing attachment processor")
         self.gmail_service = gmail_service
-        self.invoice_extractor = InvoiceExtractor(api_key)
+        self.invoice_extractor = InvoiceExtractor(
+            model_id="models/llama_321I",
+            device_map="auto",
+            torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+            memory_threshold_gb=0.85,  # Clean up when memory usage exceeds 70%
+            batch_size=5,  # Process 5 documents before forced cleanup
+            output_dir="extraction_results",
+        )
         self.drive_handler = drive_handler
         # Add HTTP session for downloading files from links
         self.session = requests.Session()
@@ -189,12 +197,12 @@ class AttachmentProcessor:
             # Pattern for easyinvoice.vn links like in the example
             r'(https?://[^\s]*?easyinvoice\.vn/Invoice/(?:DownloadInv(?:Pdf|oice)|Download)[^\s\'"]*)',
             # Additional patterns for other e-invoice providers in Vietnam
-            r'(https?://[^\s]*?einvoice[^\s/]*?\.vn/[^\s\'"]*?(?:download|view|pdf)[^\s\'"]*)',
-            r'(https?://[^\s]*?hoadon[^\s/]*?\.vn/[^\s\'"]*?(?:download|view|pdf)[^\s\'"]*)',
-            r'(https?://[^\s]*?minvoice[^\s/]*?\.vn/[^\s\'"]*?(?:download|view|pdf)[^\s\'"]*)',
-            r'(https?://[^\s]*?inv[^\s/]*?\.vn/[^\s\'"]*?(?:download|view|pdf)[^\s\'"]*)',
+            r'(https?://[^\s]*?einvoice[^\s/]*?\.vn/[^\s\'"]*?(?:download|pdf)[^\s\'"]*)',
+            r'(https?://[^\s]*?hoadon[^\s/]*?\.vn/[^\s\'"]*?(?:download|pdf)[^\s\'"]*)',
+            r'(https?://[^\s]*?minvoice[^\s/]*?\.vn/[^\s\'"]*?(?:download|pdf)[^\s\'"]*)',
+            r'(https?://[^\s]*?inv[^\s/]*?\.vn/[^\s\'"]*?(?:download|pdf)[^\s\'"]*)',
             # Generic patterns for invoice download links
-            r'(https?://[^\s]*?[Ii]nvoice[^\s/]*?/[^\s\'"]*?(?:download|view|pdf)[^\s\'"]*)',
+            r'(https?://[^\s]*?[Ii]nvoice[^\s/]*?/[^\s\'"]*?(?:download|pdf)[^\s\'"]*)',
             r'(https?://[^\s]*?/[Ii]nvoice[^\s/]*/[^\s\'"]*?(?:token|key|id)[^\s\'"]*)',
         ]
 
@@ -229,94 +237,99 @@ class AttachmentProcessor:
         return url
 
     def download_from_link(self, url):
-        """Download file from a given URL"""
-        try:
-            # Special handling for easyinvoice.vn and other invoice domains
-            if any(
-                domain in url.lower()
-                for domain in ["easyinvoice.vn", "einvoice", "hoadon", "invoice"]
-            ):
-                # First try a direct approach with advanced headers
-                headers = {
-                    "Referer": urlparse(url).scheme
-                    + "://"
-                    + urlparse(url).netloc
-                    + "/",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-                    "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
-                    "sec-ch-ua": '"Google Chrome";v="123", "Not:A-Brand";v="8"',
-                    "sec-ch-ua-mobile": "?0",
-                    "sec-ch-ua-platform": '"Windows"',
-                    "Upgrade-Insecure-Requests": "1",
-                    "Connection": "keep-alive",
-                }
+        """
+        Download file from a given URL using multiple fallback methods
+        Tries several approaches in sequence until one succeeds
+        """
+        logger.info(f"Attempting to download from URL: {url}")
 
-                # Special fix for incorrectly formatted URLs (sometimes http is used when https is required)
-                if url.startswith("http:") and not url.startswith("http://localhost"):
-                    https_url = "https:" + url[5:]
-                    logger.info(f"Trying with HTTPS instead of HTTP: {https_url}")
-                    try:
-                        response = self.session.get(
-                            https_url, timeout=30, allow_redirects=True, headers=headers
-                        )
-                        if response.status_code == 200 and response.content.startswith(
-                            b"%PDF"
-                        ):
-                            return response.content
-                    except:
-                        # If HTTPS fails, continue with original URL
-                        pass
+        # Define headers for requests
+        headers = {
+            "Referer": urlparse(url).scheme + "://" + urlparse(url).netloc + "/",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
+            "sec-ch-ua": '"Google Chrome";v="123", "Not:A-Brand";v="8"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "Upgrade-Insecure-Requests": "1",
+            "Connection": "keep-alive",
+        }
 
-                # Try regular request first
+        # Method 1: Try HTTPS if URL is HTTP (except localhost)
+        if url.startswith("http:") and not url.startswith("http://localhost"):
+            try:
+                https_url = "https:" + url[5:]
+                logger.info(f"Method 1: Trying with HTTPS instead of HTTP: {https_url}")
                 response = self.session.get(
-                    url, timeout=30, allow_redirects=True, headers=headers
+                    https_url, timeout=30, allow_redirects=True, headers=headers
                 )
-
-                # If we got a PDF directly, return it
                 if response.status_code == 200 and response.content.startswith(b"%PDF"):
                     logger.info(
-                        f"Successfully downloaded PDF directly ({len(response.content)} bytes)"
+                        f"Successfully downloaded PDF using HTTPS ({len(response.content)} bytes)"
                     )
                     return response.content
+            except Exception as e:
+                logger.warning(f"HTTPS attempt failed: {str(e)}")
 
-                # For easyinvoice.vn specifically, try a more specialized approach as they serve PDFs differently
-                if "easyinvoice.vn" in url.lower():
-                    # Create temporary directory for download
-                    import tempfile
+        # Method 2: Try direct download with headers
+        try:
+            logger.info("Method 2: Attempting direct download with custom headers")
+            response = self.session.get(
+                url, timeout=30, allow_redirects=True, headers=headers
+            )
 
-                    temp_dir = tempfile.mkdtemp()
-
-                    try:
-                        # Try to use Selenium for this download if available
-                        file_data, _ = self.download_with_selenium(url, temp_dir)
-                        if file_data and file_data.startswith(b"%PDF"):
-                            return file_data
-                    except ImportError:
-                        logger.warning(
-                            "Selenium not available for browser-based downloads"
-                        )
-                    except Exception as e:
-                        logger.warning(f"Selenium download failed: {e}")
-                    finally:
-                        # Clean up temp directory
-                        import shutil
-
-                        shutil.rmtree(temp_dir, ignore_errors=True)
-
-                # If we've tried everything and still don't have a PDF, give up
-                logger.warning(f"Failed to download PDF from invoice link: {url}")
-                return None
-            else:
-                # Regular download for non-invoice links
-                response = self.session.get(url, timeout=30, allow_redirects=True)
-                response.raise_for_status()
+            if response.status_code == 200 and response.content.startswith(b"%PDF"):
+                logger.info(
+                    f"Successfully downloaded PDF directly ({len(response.content)} bytes)"
+                )
                 return response.content
-
         except Exception as e:
-            # Log warning for failed downloads
-            logger.warning(f"Failed to download from {url}: {e}")
-            return None
+            logger.warning(f"Direct download failed: {str(e)}")
+
+        # Method 3: Try with Selenium for browser-based downloads
+        try:
+            logger.info("Method 3: Attempting download with Selenium")
+            # Create temporary directory for download
+            import tempfile
+
+            temp_dir = tempfile.mkdtemp()
+
+            try:
+                file_data, _ = self.download_with_selenium(url, temp_dir)
+                if file_data and file_data.startswith(b"%PDF"):
+                    logger.info(
+                        f"Successfully downloaded PDF with Selenium ({len(file_data)} bytes)"
+                    )
+                    return file_data
+            finally:
+                # Clean up temp directory
+                import shutil
+
+                shutil.rmtree(temp_dir, ignore_errors=True)
+        except ImportError:
+            logger.warning("Selenium not available for browser-based downloads")
+        except Exception as e:
+            logger.warning(f"Selenium download failed: {str(e)}")
+
+        # Method 4: Try simple GET request without fancy headers
+        try:
+            logger.info("Method 4: Attempting simple GET request")
+            response = self.session.get(url, timeout=30, allow_redirects=True)
+            if response.status_code == 200:
+                if response.content.startswith(b"%PDF"):
+                    logger.info(
+                        f"Successfully downloaded PDF with simple GET ({len(response.content)} bytes)"
+                    )
+                    return response.content
+                else:
+                    logger.warning("Response received but not a PDF file")
+        except Exception as e:
+            logger.warning(f"Simple GET request failed: {str(e)}")
+
+        # If we've tried everything and still don't have a PDF, give up
+        logger.warning(f"All download methods failed for URL: {url}")
+        return None
 
     def generate_filename_from_url(self, url):
         """Generate a sensible filename from URL"""

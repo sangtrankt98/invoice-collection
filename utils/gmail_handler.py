@@ -12,6 +12,7 @@ from utils.attachment_processor import AttachmentProcessor
 from utils.logger_setup import setup_logger
 
 logger = setup_logger()
+all_processed_thread_ids = []
 
 
 class GmailHandler:
@@ -26,12 +27,36 @@ class GmailHandler:
         )
 
     def extract_email_content(
-        self, user_id="me", query="has:attachment", max_results=10, time_filter=None
+        self,
+        user_id="me",
+        query="has:attachment",
+        max_results=100,
+        time_filter=None,
+        processed_thread_ids=None,
     ):
-        """Fetch emails and extract content with time-based filtering"""
+        """Fetch emails and extract content with time-based filtering, avoiding already processed threads
+
+        Args:
+            user_id (str): Gmail user ID, usually 'me'
+            query (str): Gmail query string
+            max_results (int): Maximum number of threads to process
+            time_filter (str): Time filter string like '1h' for 1 hour or '30m' for 30 minutes
+            processed_thread_ids (list): List of thread IDs that have already been processed
+
+        Returns:
+            list: Extracted email data
+        """
         logger.info(
             f"Extracting emails with query: '{query}', max results: {max_results}, time filter: {time_filter}"
         )
+
+        # Initialize empty list if None is provided
+        if processed_thread_ids is None:
+            processed_thread_ids = []
+        else:
+            logger.info(
+                f"Found {len(processed_thread_ids)} previously processed thread IDs"
+            )
 
         try:
             # Calculate cutoff time for filtering if time_filter is provided
@@ -56,7 +81,7 @@ class GmailHandler:
                     # Invalid time filter format, ignore
                     logger.warning(f"Invalid time filter format: {time_filter}")
 
-            # Instead of fetching messages, fetch threads first
+            # Fetch threads first
             results = (
                 self.service.users()
                 .threads()
@@ -70,10 +95,28 @@ class GmailHandler:
                 return []
 
             logger.info(f"Found {len(threads)} threads matching the query")
+
+            # Filter out already processed threads
+            new_threads = [
+                thread for thread in threads if thread["id"] not in processed_thread_ids
+            ]
+            skipped_threads = len(threads) - len(new_threads)
+
+            if skipped_threads > 0:
+                logger.info(f"Skipped {skipped_threads} previously processed threads")
+
+            if not new_threads:
+                logger.info("All threads have been previously processed")
+                return []
+
+            logger.info(f"Processing {len(new_threads)} new threads")
             email_data = []
 
-            for i, thread in enumerate(threads):
-                logger.info(f"Processing thread {i+1} of {len(threads)}")
+            # Track newly processed thread IDs to return
+            newly_processed_thread_ids = []
+
+            for i, thread in enumerate(new_threads):
+                logger.info(f"Processing thread {i+1} of {len(new_threads)}")
                 try:
                     # Get the full thread with all messages
                     thread_data = (
@@ -87,21 +130,25 @@ class GmailHandler:
                     result = self._process_thread(user_id, thread_data, cutoff_time)
                     if result:
                         email_data.append(result)
+                        # Add thread ID to the list of processed threads
+                        newly_processed_thread_ids.append(thread["id"])
 
                 except Exception as e:
                     logger.error(f"Error processing thread ID {thread['id']}: {e}")
 
             logger.info(
-                f"Successfully processed {len(email_data)} out of {len(threads)} threads"
+                f"Successfully processed {len(email_data)} out of {len(new_threads)} threads"
             )
+
+            # Return both the email data and the list of newly processed thread IDs
             return email_data
 
         except HttpError as error:
             logger.error(f"Gmail API error: {error}")
-            return []
+            return [], []
         except Exception as e:
             logger.error(f"Unexpected error extracting emails: {e}")
-            return []
+            return [], []
 
     def _process_thread(self, user_id, thread_data, cutoff_time=None):
         """Process a thread with time-based filtering of messages"""
