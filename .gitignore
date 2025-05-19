@@ -4,6 +4,7 @@ finance_*.*
 temp_images/
 company_files/
 company_reports/
+data_storage/
 *.csv
 models
 config.py
