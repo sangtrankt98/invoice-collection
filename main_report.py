@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import threading
 import time
 from utils.auth import GoogleAuthenticator
-from utils.bigquery_handler import BigQueryHandler
+from archived.bigquery_handler import BigQueryHandler
 from utils.transaction_reports import TransactionReportGenerator
 from utils.logger_setup import setup_logger
 import config

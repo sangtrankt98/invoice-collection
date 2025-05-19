@@ -31,7 +31,7 @@ logger = setup_logger()
 class AttachmentProcessor:
     """Handles the processing of email attachments"""
 
-    def __init__(self, gmail_service, api_key, drive_handler):
+    def __init__(self, gmail_service, drive_handler):
         """Initialize with Gmail service"""
         logger.info("Initializing attachment processor")
         self.gmail_service = gmail_service
@@ -39,7 +39,7 @@ class AttachmentProcessor:
             model_id="models/llama_321I",
             device_map="auto",
             torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-            memory_threshold_gb=0.85,  # Clean up when memory usage exceeds 70%
+            memory_threshold_gb=0.9,  # Clean up when memory usage exceeds 70%
             batch_size=5,  # Process 5 documents before forced cleanup
             output_dir="extraction_results",
         )
@@ -519,26 +519,26 @@ class AttachmentProcessor:
             "description": data["description"],
         }
 
-    def process_image(self, attachment, img_path):
-        """Process image attachment to extract invoice data"""
-        logger.info(f"Processing image: {attachment['filename']}")
-        data = self.invoice_extractor.extract_data_from_image(img_path)
-        return {
-            "document_type": data["document_type"],
-            "document_number": data["document_number"],
-            "date": data["date"],
-            "entity_name": data["entity_name"],
-            "entity_tax_number": data["entity_tax_number"],
-            "counterparty_name": data["counterparty_name"],
-            "counterparty_tax_number": data["counterparty_tax_number"],
-            "payment_method": data["payment_method"],
-            "amount_before_tax": data["amount_before_tax"],
-            "tax_rate": data["tax_rate"],
-            "tax_amount": data["tax_amount"],
-            "total_amount": data["total_amount"],
-            "direction": data["direction"],
-            "description": data["description"],
-        }
+    # def process_image(self, attachment, img_path):
+    #     """Process image attachment to extract invoice data"""
+    #     logger.info(f"Processing image: {attachment['filename']}")
+    #     data = self.invoice_extractor.extract_data_from_image(img_path)
+    #     return {
+    #         "document_type": data["document_type"],
+    #         "document_number": data["document_number"],
+    #         "date": data["date"],
+    #         "entity_name": data["entity_name"],
+    #         "entity_tax_number": data["entity_tax_number"],
+    #         "counterparty_name": data["counterparty_name"],
+    #         "counterparty_tax_number": data["counterparty_tax_number"],
+    #         "payment_method": data["payment_method"],
+    #         "amount_before_tax": data["amount_before_tax"],
+    #         "tax_rate": data["tax_rate"],
+    #         "tax_amount": data["tax_amount"],
+    #         "total_amount": data["total_amount"],
+    #         "direction": data["direction"],
+    #         "description": data["description"],
+    #     }
 
     def process_xml(self, attachment, xml_path):
         """Process XML files to extract invoice information"""

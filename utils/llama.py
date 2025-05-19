@@ -100,7 +100,8 @@ class InvoiceExtractor:
             generation_config = GenerationConfig(
                 do_sample=False,  # Always select highest probability tokens
                 max_new_tokens=1000,
-                # You can add other parameters here
+                temperature=0.2,  # Set low temperature for more deterministic output
+                top_p=0.9,  # Add explicit top_p setting
             )
 
             # Load tokenizer first (smaller memory footprint)
@@ -335,7 +336,7 @@ class InvoiceExtractor:
 
                 Extract the following information into JSON format:
                 - document_type: INVOICE, BANK_TRANSACTION, TAX_DOCUMENT, or OTHER_FINANCIAL
-                - document_number: ID number (only get information after 'Số'/'Number'/'No')
+                - document_number: ID number (only get information after Số/Number/No., not after Serial/Ký Hiệu)
                 - date: Format yyyy-mm-dd
                 - entity_name: Main company/person
                 - entity_tax_number: Their tax ID
@@ -521,112 +522,112 @@ class InvoiceExtractor:
             logger.error("Could not convert PDF to image")
             return DEFAULT_DICT.copy()
 
-    def extract_data_from_image(self, image_input: Union[str, bytes]) -> Dict[str, Any]:
-        """
-        Extract invoice data from an image.
+    # def extract_data_from_image(self, image_input: Union[str, bytes]) -> Dict[str, Any]:
+    #     """
+    #     Extract invoice data from an image.
 
-        Args:
-            image_input (Union[str, bytes]): Path to the image file or base64 string or bytes
+    #     Args:
+    #         image_input (Union[str, bytes]): Path to the image file or base64 string or bytes
 
-        Returns:
-            dict: Extracted invoice data
-        """
-        # First, convert the image to a format we can use for OCR
-        image_bytes = self._prepare_image(image_input)
-        if not image_bytes:
-            logger.error("Failed to prepare image for processing")
-            return DEFAULT_DICT.copy()
+    #     Returns:
+    #         dict: Extracted invoice data
+    #     """
+    #     # First, convert the image to a format we can use for OCR
+    #     image_bytes = self._prepare_image(image_input)
+    #     if not image_bytes:
+    #         logger.error("Failed to prepare image for processing")
+    #         return DEFAULT_DICT.copy()
 
-        # Perform OCR on the image
-        text = self._perform_ocr(image_bytes)
-        if not text:
-            logger.error("OCR failed to extract text from image")
-            return DEFAULT_DICT.copy()
+    #     # Perform OCR on the image
+    #     text = self._perform_ocr(image_bytes)
+    #     if not text:
+    #         logger.error("OCR failed to extract text from image")
+    #         return DEFAULT_DICT.copy()
 
-        # Process the extracted text with model
-        return self.process_text_with_model(text)
+    #     # Process the extracted text with model
+    #     return self.process_text_with_model(text)
 
-    def _prepare_image(self, image_input: Union[str, bytes]) -> Optional[bytes]:
-        """
-        Prepare an image for processing, handling various input formats.
+    # def _prepare_image(self, image_input: Union[str, bytes]) -> Optional[bytes]:
+    #     """
+    #     Prepare an image for processing, handling various input formats.
 
-        Args:
-            image_input: Path to image file, base64 string, or bytes
+    #     Args:
+    #         image_input: Path to image file, base64 string, or bytes
 
-        Returns:
-            bytes: Image bytes or None if preparation failed
-        """
-        try:
-            # Handle file path
-            if isinstance(image_input, str) and os.path.exists(image_input):
-                logger.info(f"Reading image from file: {image_input}")
-                with open(image_input, "rb") as f:
-                    return f.read()
+    #     Returns:
+    #         bytes: Image bytes or None if preparation failed
+    #     """
+    #     try:
+    #         # Handle file path
+    #         if isinstance(image_input, str) and os.path.exists(image_input):
+    #             logger.info(f"Reading image from file: {image_input}")
+    #             with open(image_input, "rb") as f:
+    #                 return f.read()
 
-            # Handle base64 string
-            elif isinstance(image_input, str):
-                # Remove data URL prefix if present
-                if image_input.startswith("data:image"):
-                    image_input = image_input.split(",", 1)[1]
+    #         # Handle base64 string
+    #         elif isinstance(image_input, str):
+    #             # Remove data URL prefix if present
+    #             if image_input.startswith("data:image"):
+    #                 image_input = image_input.split(",", 1)[1]
 
-                logger.info("Decoding base64 image")
-                return base64.b64decode(image_input)
+    #             logger.info("Decoding base64 image")
+    #             return base64.b64decode(image_input)
 
-            # Handle bytes directly
-            elif isinstance(image_input, bytes):
-                return image_input
+    #         # Handle bytes directly
+    #         elif isinstance(image_input, bytes):
+    #             return image_input
 
-            else:
-                logger.error(f"Unsupported image input type: {type(image_input)}")
-                return None
+    #         else:
+    #             logger.error(f"Unsupported image input type: {type(image_input)}")
+    #             return None
 
-        except Exception as e:
-            logger.error(f"Error preparing image: {e}")
-            return None
+    #     except Exception as e:
+    #         logger.error(f"Error preparing image: {e}")
+    #         return None
 
-    def _perform_ocr(self, image_bytes: bytes) -> str:
-        """
-        Perform OCR on an image to extract text.
+    # def _perform_ocr(self, image_bytes: bytes) -> str:
+    #     """
+    #     Perform OCR on an image to extract text.
 
-        Args:
-            image_bytes: Image data as bytes
+    #     Args:
+    #         image_bytes: Image data as bytes
 
-        Returns:
-            str: Extracted text
-        """
-        try:
-            # Import tesseract here to avoid dependency if not used
-            import pytesseract
-            from PIL import Image
+    #     Returns:
+    #         str: Extracted text
+    #     """
+    #     try:
+    #         # Import tesseract here to avoid dependency if not used
+    #         import pytesseract
+    #         from PIL import Image
 
-            logger.info("Performing OCR on image")
-            pytesseract.pytesseract.tesseract_cmd = (
-                r"C:\Users\NJV\AppData\Local\Programs\Tesseract-OCR"  # Windows example
-            )
+    #         logger.info("Performing OCR on image")
+    #         pytesseract.pytesseract.tesseract_cmd = (
+    #             r"C:\Users\NJV\AppData\Local\Programs\Tesseract-OCR"  # Windows example
+    #         )
 
-            # Convert bytes to PIL Image
-            image = Image.open(io.BytesIO(image_bytes))
+    #         # Convert bytes to PIL Image
+    #         image = Image.open(io.BytesIO(image_bytes))
 
-            # Perform OCR with Vietnamese language support
-            text = pytesseract.image_to_string(
-                image,
-                lang="vie+eng",  # Vietnamese + English
-                config="--psm 1",  # Automatic page segmentation with OSD
-            )
+    #         # Perform OCR with Vietnamese language support
+    #         text = pytesseract.image_to_string(
+    #             image,
+    #             lang="vie+eng",  # Vietnamese + English
+    #             config="--psm 1",  # Automatic page segmentation with OSD
+    #         )
 
-            logger.info(f"OCR extracted {len(text)} characters")
-            return text
+    #         logger.info(f"OCR extracted {len(text)} characters")
+    #         return text
 
-        except ImportError:
-            logger.error(
-                "pytesseract not installed. Install with: pip install pytesseract"
-            )
-            logger.error("Also ensure Tesseract OCR is installed on your system")
-            return ""
+    #     except ImportError:
+    #         logger.error(
+    #             "pytesseract not installed. Install with: pip install pytesseract"
+    #         )
+    #         logger.error("Also ensure Tesseract OCR is installed on your system")
+    #         return ""
 
-        except Exception as e:
-            logger.error(f"OCR error: {e}")
-            return ""
+    #     except Exception as e:
+    #         logger.error(f"OCR error: {e}")
+    #         return ""
 
     def _get_pdf_as_image(self, pdf_path: str) -> Optional[str]:
         """

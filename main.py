@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Invoice Collection Main Script
-Automates the process of collecting invoice data from emails and uploading to BigQuery
+Automates the process of collecting invoice data from emails and storing locally
 Optimized for PyInstaller packaging and automation
 """
 import sys
@@ -13,7 +13,7 @@ from utils.auth import GoogleAuthenticator
 from utils.gmail_handler import GmailHandler
 from utils.drive_handler import DriveHandler
 from utils.local_handler import LocalHandler
-from utils.bigquery_handler import BigQueryHandler
+from utils.local_storage_handler import LocalStorageHandler
 from utils.output_handler import standardize_dataframe
 from utils.logger_setup import setup_logger
 import config
@@ -102,15 +102,17 @@ def run_invoice_collection(drive_link, time_filter="1d"):
 
         log_status("Initializing service handlers...")
         drive_handler = DriveHandler(credentials)
-        gmail_handler = GmailHandler(credentials, config.OPENAI, drive_handler)
-        bigquery_handler = BigQueryHandler(credentials)
+        gmail_handler = GmailHandler(credentials, drive_handler)
+
+        # Changed from BigQueryHandler to LocalStorageHandler
+        storage_handler = LocalStorageHandler("data_storage")
 
         # Convert time filter to Gmail-compatible query
         EMAIL_QUERY = convert_time_to_query(time_filter)
         log_status(f"Fetching emails with query: '{EMAIL_QUERY}'...")
 
         # Collect processed threads within a day
-        threads = bigquery_handler.query_threads_within_day()
+        threads = storage_handler.query_threads_within_day()
         # Use the updated extract_email_content method with time_filter for post-processing
         email_data = gmail_handler.extract_email_content(
             query=EMAIL_QUERY,
@@ -125,59 +127,30 @@ def run_invoice_collection(drive_link, time_filter="1d"):
         log_status(f"Successfully processed {len(email_data)} emails.")
 
         log_status("Extracting data from emails...")
-        df = pd.DataFrame(bigquery_handler.extract_data(email_data))
+        data_rows = storage_handler.extract_data(email_data)
+
+        # Convert to DataFrame for processing
+        df = pd.DataFrame(data_rows)
 
         if df.empty:
             logger.warning("No data extracted from emails.")
             return False, "No data could be extracted from the emails."
 
-        log_status("Processing attachment details...")
-        df_exploded = df.explode("attachment_details")
-        attachment_df = pd.json_normalize(df_exploded["attachment_details"])
-        final_df = pd.concat(
-            [
-                df_exploded.drop(columns=["attachment_details"]).reset_index(drop=True),
-                attachment_df.reset_index(drop=True),
-            ],
-            axis=1,
-        )
-
         # Standardize entity names and determine transaction direction
         log_status("Standardizing entities and determining transaction direction...")
-        final_df = standardize_dataframe(final_df)
+        final_df = standardize_dataframe(df)
 
         # Format document numbers
         final_df["document_number"] = "'" + final_df["document_number"].astype(str)
 
-        # Upload data to bigquery
-        log_status("Uploading data to BigQuery...")
-        final_df = bigquery_handler.clean_dataframe_for_bigquery(final_df)
-        bigquery_handler.upload_dataframe(
-            data=final_df,
-            project_id="immortal-0804",
-            dataset_id="finance_project",
-            table_id="invoice_summarize",
-            if_exists="append",  # will append to table if it exists
-        )
+        # Save data to local storage
+        log_status("Saving data to local storage...")
+        final_df = storage_handler.clean_dataframe_for_storage(final_df)
+        storage_success = storage_handler.save_data(final_df.to_dict("records"))
 
-        # # Upload PDF files to Google Drive
-        # log_status(f"Organizing and uploading PDFs to Drive folder...")
-        # upload_results = drive_handler.organize_and_upload_pdfs(
-        #     drive_link, final_df, local_pdf_dir="downloads"
-        # )
-        # # Check for drive errors
-        # if "error" in upload_results:
-        #     error_msg = upload_results["error"]
-        #     logger.error(error_msg)
-        #     return False, error_msg
-
-        # log_status(
-        #     f"Upload summary: {upload_results['successful_uploads']} successful, "
-        #     f"{upload_results['failed_uploads']} failed"
-        # )
-
-        # if upload_results["failed_uploads"] > 0:
-        #     logger.warning("Some files failed to upload. Check the log for details.")
+        if not storage_success:
+            logger.error("Failed to save data to local storage")
+            return False, "Failed to save data to local storage"
 
         # Get base directory that works in both development and PyInstaller context
         base_dir = os.path.abspath(
@@ -224,7 +197,7 @@ def main():
     # Load drive link from config
     drive_link = config.DRIVE
     # Set default time filter to 1 day
-    time_filter = "11h"
+    time_filter = "7h"
     logger.info(f"Starting process with time filter: {time_filter}")
     success, message = run_invoice_collection(
         drive_link=drive_link, time_filter=time_filter

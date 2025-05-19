@@ -11,7 +11,7 @@ from utils.auth import GoogleAuthenticator
 from utils.gmail_handler import GmailHandler
 from utils.drive_handler import DriveHandler
 from utils.local_handler import LocalHandler
-from utils.bigquery_handler import BigQueryHandler
+from archived.bigquery_handler import BigQueryHandler
 from utils.output_handler import *
 from utils.logger_setup import setup_logger
 import config

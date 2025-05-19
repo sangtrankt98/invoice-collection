@@ -18,13 +18,11 @@ all_processed_thread_ids = []
 class GmailHandler:
     """Handles Gmail API operations"""
 
-    def __init__(self, credentials, api_key, drive_handler):
+    def __init__(self, credentials, drive_handler):
         """Initialize with Google credentials"""
         logger.info("Initializing Gmail handler")
         self.service = GoogleAuthenticator.create_service("gmail", "v1", credentials)
-        self.attachment_processor = AttachmentProcessor(
-            self.service, api_key, drive_handler
-        )
+        self.attachment_processor = AttachmentProcessor(self.service, drive_handler)
 
     def extract_email_content(
         self,
@@ -633,8 +631,8 @@ class GmailHandler:
         try:
             if file_extension == ".pdf":
                 return self._process_pdf_attachment(att, file_path)
-            elif file_extension in (".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp"):
-                return self._process_image_attachment(att, file_path)
+            # elif file_extension in (".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp"):
+            #     return self._process_image_attachment(att, file_path)
             elif file_extension == ".xml":
                 return self._process_xml_attachment(att, file_path)
             else:
@@ -653,18 +651,18 @@ class GmailHandler:
         process_result = self.attachment_processor.process_pdf(att, file_path)
         return self._handle_processed_document(att, process_result, file_path)
 
-    def _process_image_attachment(self, att, file_path):
-        """Process image attachments (may contain scanned invoices)"""
-        try:
-            # Call a method from attachment processor to handle images (may use OCR)
-            process_result = self.attachment_processor.process_image(att, file_path)
-            return self._handle_processed_document(att, process_result, file_path)
-        except Exception as e:
-            logger.error(f"Error processing image {file_path}: {str(e)}")
-            att["file_type"] = "image"
-            att["error"] = str(e)
-            att["processed"] = False
-            return att
+    # def _process_image_attachment(self, att, file_path):
+    #     """Process image attachments (may contain scanned invoices)"""
+    #     try:
+    #         # Call a method from attachment processor to handle images (may use OCR)
+    #         process_result = self.attachment_processor.process_image(att, file_path)
+    #         return self._handle_processed_document(att, process_result, file_path)
+    #     except Exception as e:
+    #         logger.error(f"Error processing image {file_path}: {str(e)}")
+    #         att["file_type"] = "image"
+    #         att["error"] = str(e)
+    #         att["processed"] = False
+    #         return att
 
     def _process_xml_attachment(self, att, file_path):
         """Process XML attachments (may contain structured invoice data)"""
